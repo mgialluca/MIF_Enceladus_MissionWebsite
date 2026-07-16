@@ -9,7 +9,48 @@
 <body>
     <div class="login-container">
         <h1>Mission Control</h1>
-        <p>Admin dashboard placeholder — unlock controls go here next.</p>
+        <p>Click a game to unlock it for that group.</p>
+        <div id="admin-controls"></div>
     </div>
+
+    <script src="../js/auth-guard.js"></script>
+    <script>
+      const user = requireAuth("admin", null, "../index.html");
+    </script>
+
+    <script type="module">
+      import { GAMES_CONFIG } from "../js/games-config.js";
+      import { listenToUnlocks, unlockGame } from "../js/mission-data.js";
+
+      const container = document.getElementById("admin-controls");
+      let currentUnlocks = {};
+
+      listenToUnlocks((unlocks) => {
+        currentUnlocks = unlocks;
+        render();
+      });
+
+      function render() {
+        container.innerHTML = "";
+        Object.keys(GAMES_CONFIG).forEach((group) => {
+          const groupHeader = document.createElement("h3");
+          groupHeader.textContent = group;
+          container.appendChild(groupHeader);
+
+          const unlockedIds = currentUnlocks[`${group}_unlocked`] || [];
+
+          GAMES_CONFIG[group].forEach((game) => {
+            const btn = document.createElement("button");
+            const isUnlocked = unlockedIds.includes(game.id);
+            btn.textContent = isUnlocked ? `✅ ${game.title} (unlocked)` : `Unlock: ${game.title}`;
+            btn.disabled = isUnlocked;
+            btn.style.display = "block";
+            btn.style.margin = "0.4rem 0";
+            btn.addEventListener("click", () => unlockGame(group, game.id));
+            container.appendChild(btn);
+          });
+        });
+      }
+    </script>
 </body>
 </html>

@@ -8,7 +8,39 @@
 <body>
     <div class="login-container">
         <h1>Team WhiteWhale</h1>
-        <p>Your mission games will appear here once unlocked.</p>
+        <p>Mission games appear below as they're unlocked.</p>
+        <ul id="game-list" class="game-list"></ul>
     </div>
+
+    <script src="../../js/auth-guard.js"></script>
+    <script>
+      const user = requireAuth("participant", "WhiteWhale", "../../index.html");
+    </script>
+
+    <script type="module">
+      import { GAMES_CONFIG } from "../../js/games-config.js";
+      import { listenToUnlocks } from "../../js/mission-data.js";
+
+      const listEl = document.getElementById("game-list");
+
+      listenToUnlocks((unlocks) => {
+        const unlockedIds = unlocks.WhiteWhale_unlocked || [];
+        listEl.innerHTML = "";
+
+        GAMES_CONFIG.WhiteWhale.forEach((game) => {
+          const li = document.createElement("li");
+          const isUnlocked = unlockedIds.includes(game.id);
+
+          if (isUnlocked) {
+            li.innerHTML = `<a href="${game.file}">${game.title}</a>`;
+            li.classList.add("unlocked");
+          } else {
+            li.textContent = `🔒 ${game.title}`;
+            li.classList.add("locked");
+          }
+          listEl.appendChild(li);
+        });
+      });
+    </script>
 </body>
 </html>
