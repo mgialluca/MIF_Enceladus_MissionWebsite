@@ -21,3 +21,9 @@ export async function unlockGame(group, gameId) {
   const fieldName = `${group}_unlocked`;
   await setDoc(unlocksRef, { [fieldName]: arrayUnion(gameId) }, { merge: true });
 }
+
+// removes a game ID from a group's unlocked array
+export async function relockGame(group, gameId) {
+  const fieldName = `${group}_unlocked`;
+  await setDoc(unlocksRef, { [fieldName]: arrayRemove(gameId) }, { merge: true });
+}

@@ -31,8 +31,8 @@
       });
 
       function render() {
-        container.innerHTML = "";
-        Object.keys(GAMES_CONFIG).forEach((group) => {
+      container.innerHTML = "";
+      Object.keys(GAMES_CONFIG).forEach((group) => {
           const groupHeader = document.createElement("h3");
           groupHeader.textContent = group;
           container.appendChild(groupHeader);
@@ -40,16 +40,27 @@
           const unlockedIds = currentUnlocks[`${group}_unlocked`] || [];
 
           GAMES_CONFIG[group].forEach((game) => {
-            const btn = document.createElement("button");
-            const isUnlocked = unlockedIds.includes(game.id);
-            btn.textContent = isUnlocked ? `✅ ${game.title} (unlocked)` : `Unlock: ${game.title}`;
-            btn.disabled = isUnlocked;
-            btn.style.display = "block";
-            btn.style.margin = "0.4rem 0";
-            btn.addEventListener("click", () => unlockGame(group, game.id));
-            container.appendChild(btn);
+          const btn = document.createElement("button");
+          const isUnlocked = unlockedIds.includes(game.id);
+
+          btn.textContent = isUnlocked
+              ? `🔓 ${game.title} — click to relock`
+              : `🔒 ${game.title} — click to unlock`;
+          btn.style.display = "block";
+          btn.style.margin = "0.4rem 0";
+          btn.className = isUnlocked ? "unlock-btn unlocked" : "unlock-btn locked";
+
+          btn.addEventListener("click", () => {
+              if (isUnlocked) {
+              relockGame(group, game.id);
+              } else {
+              unlockGame(group, game.id);
+              }
           });
-        });
+
+          container.appendChild(btn);
+          });
+      });
       }
     </script>
 </body>

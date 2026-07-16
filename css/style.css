@@ -81,3 +81,13 @@ button:hover {
   color: #7fd8ff;
   font-weight: bold;
 }
+
+.unlock-btn.unlocked {
+  background: #1f5c3a;
+  color: #a8ffcf;
+}
+
+.unlock-btn.locked {
+  background: #2f9bd6;
+  color: white;
+}
