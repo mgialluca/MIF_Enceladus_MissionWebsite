@@ -9,7 +9,23 @@
 </head>
 <body>
 
-    <script src="js/firebase-config.js"></script>
+    <div class="login-container">
+        <h1>Enceladus Mission Simulator</h1>
+        <p>Enter your team credentials to begin.</p>
+
+        <form id="login-form">
+            <label for="username">Login Name</label>
+            <input type="text" id="username" autocomplete="off" required>
+
+            <label for="passcode">Passcode</label>
+            <input type="password" id="passcode" required>
+
+            <button type="submit">Log In</button>
+        </form>
+
+        <p id="error-message" class="error-message"></p>
+    </div>
+
     <script src="js/users.js"></script>
     <script src="js/auth.js"></script>
 </body>
