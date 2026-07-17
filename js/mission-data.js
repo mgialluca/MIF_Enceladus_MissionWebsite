@@ -2,7 +2,7 @@
 
 import { db } from "./firebase-init.js";
 import {
-  doc, onSnapshot, setDoc, arrayUnion
+  doc, onSnapshot, setDoc, arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const unlocksRef = doc(db, "missionState", "unlocks");
