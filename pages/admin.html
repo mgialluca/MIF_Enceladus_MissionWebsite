@@ -31,8 +31,8 @@
       });
 
       function render() {
-      container.innerHTML = "";
-      Object.keys(GAMES_CONFIG).forEach((group) => {
+        container.innerHTML = "";
+        Object.keys(GAMES_CONFIG).forEach((group) => {
           const groupHeader = document.createElement("h3");
           groupHeader.textContent = group;
           container.appendChild(groupHeader);
@@ -60,7 +60,7 @@
 
           container.appendChild(btn);
           });
-      });
+        });
       }
     </script>
 </body>
