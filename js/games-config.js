@@ -5,13 +5,13 @@
 
 export const GAMES_CONFIG = {
   HIVE: [
-    { id: "dashboard", title: "Mission Dashboard", file: "dashboard.html" },
+    //{ id: "dashboard", title: "Mission Dashboard", file: "dashboard.html" },
     // Example of adding a new game later:
     // { id: "signal-decode", title: "Signal Decode", file: "signal-decode.html" },
     { id: "operate-drones", title: "Drone Release and Movement", file: "Phase1_ReleaseDrones.html" },
   ],
   WhiteWhale: [
-    { id: "dashboard", title: "Mission Dashboard", file: "dashboard.html" }
+    //{ id: "dashboard", title: "Mission Dashboard", file: "dashboard.html" }
     // { id: "sonar-mapping", title: "Sonar Mapping", file: "sonar-mapping.html" },
   ]
 };
