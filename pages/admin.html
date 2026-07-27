@@ -62,6 +62,38 @@
           });
         });
       }
+      const RESET_FUNCTION_URL = "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/reset_group";
+
+      async function resetGroup(group) {
+        const confirmed = confirm(`Reset ALL drones and collected-data counters for ${group}? This cannot be undone.`);
+        if (!confirmed) return;
+
+        const res = await fetch(RESET_FUNCTION_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ group })
+        });
+
+        if (res.ok) {
+          alert(`${group} has been reset.`);
+        } else {
+          alert(`Reset failed for ${group}. Check console for details.`);
+          console.error(await res.text());
+        }
+      }
+
+      // Add reset buttons, one per group, near the top of the admin controls
+      const resetSection = document.createElement("div");
+      resetSection.innerHTML = "<h3>Testing Controls</h3>";
+      Object.keys(GAMES_CONFIG).forEach((group) => {
+        const btn = document.createElement("button");
+        btn.textContent = `⚠️ Reset ${group}`;
+        btn.style.margin = "0.4rem 0.4rem 0.4rem 0";
+        btn.style.background = "#a83232";
+        btn.addEventListener("click", () => resetGroup(group));
+        resetSection.appendChild(btn);
+      });
+      container.parentNode.insertBefore(resetSection, container);
     </script>
 </body>
 </html>
