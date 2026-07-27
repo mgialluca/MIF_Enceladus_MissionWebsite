@@ -1,7 +1,7 @@
 // Pure grid/coordinate logic for HIVE's drone-explorer game.
 // No Firestore, no DOM — fully unit-testable in isolation.
 
-import { MISSION_CONFIG } from "./config.js";
+import { MISSION_CONFIG, scaledSeconds } from "./config.js";
 
 export const BOUNDS_M = {
   xMax: MISSION_CONFIG.GRID_X_KM * 1000,
@@ -28,22 +28,18 @@ export function distanceMeters(a, b) {
 
 function computeLegTime(a, b, scale) {
   const dist = distanceMeters(a, b);
-  return scale === "km"
-    ? (dist / 1000) * MISSION_CONFIG.KM_SCALE_SECONDS_PER_KM
-    : dist * MISSION_CONFIG.M_SCALE_SECONDS_PER_METER;
+  const realSeconds = scale === "km"
+    ? dist / MISSION_CONFIG.KM_JUMP_SPEED_M_PER_S
+    : dist * (60 / MISSION_CONFIG.M_JUMP_SPEED_M_PER_MIN);
+  return scaledSeconds(realSeconds);
 }
 
 /**
  * Decomposes a move from `current` to `destination` into up to two ordered legs:
  * 1. A "km" leg — the largest whole-km displacement (per axis) toward the destination
  * 2. An "m" leg — whatever meter-scale remainder is left to reach the exact destination
- *
- * Example: current.x = 5000, destination.x = 7500
- *   -> km leg moves x from 5000 -> 7000 (2 km), m leg covers 7000 -> 7500 (500m)
- *
- * Only the FINAL leg's arrival counts as the command's true destination for
- * data-collection purposes; the km-leg's intermediate stop is purely transit.
  * Returns 0, 1, or 2 legs (0 only if destination === current).
+ * Each leg's travelTimeSeconds already reflects DEBUG_FAST_MODE if enabled.
  */
 export function decomposeMove(current, destination) {
   const dest = clampToBounds({
@@ -88,12 +84,11 @@ export function decomposeMove(current, destination) {
 
 /**
  * Given an active leg (with from/to/travelTimeSeconds/startedAt already set)
- * and the current time, computes the drone's true interpolated position —
- * rounded to the nearest whole meter on each axis, so a mid-leg cancel can
- * never leave a drone at a fractional-meter position.
+ * and the current time (epoch ms), computes the drone's true interpolated
+ * position — rounded to the nearest whole meter on each axis.
  */
-export function interpolateLegPosition(leg, now) {
-  const elapsedSeconds = (now - leg.startedAt) / 1000;
+export function interpolateLegPosition(leg, nowMs) {
+  const elapsedSeconds = (nowMs - leg.startedAt) / 1000;
   const fraction = Math.min(Math.max(elapsedSeconds / leg.travelTimeSeconds, 0), 1);
 
   const raw = {

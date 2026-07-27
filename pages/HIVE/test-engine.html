@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Drone Engine — Test Harness</title>
+    <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+    <div class="login-container" style="width: 600px;">
+        <h1>Engine Test (HIVE-01)</h1>
+
+        <label>X (m)</label><input type="number" id="destX" value="0">
+        <label>Y (m)</label><input type="number" id="destY" value="0">
+        <label>Z (m)</label><input type="number" id="destZ" value="0">
+        <button id="sendCommand">Send Command</button>
+        <button id="cancelCommand">Cancel Active Command</button>
+
+        <pre id="output" style="text-align:left; background:#08161f; padding:1rem; margin-top:1rem; max-height:400px; overflow:auto;"></pre>
+    </div>
+
+    <script type="module">
+      import { issueCommand, cancelActiveCommand, catchUpDrone, listenToDrone } from "../../js/games/hive-drone-explorer/drone-engine.js";
+
+      const GROUP = "HIVE";
+      const DRONE_ID = "HIVE-01";
+      const output = document.getElementById("output");
+
+      listenToDrone(GROUP, DRONE_ID, (drone) => {
+        output.textContent = JSON.stringify(drone, null, 2);
+      });
+
+      catchUpDrone(GROUP, DRONE_ID);
+
+      document.getElementById("sendCommand").addEventListener("click", () => {
+        issueCommand(GROUP, DRONE_ID, {
+          x: Number(document.getElementById("destX").value),
+          y: Number(document.getElementById("destY").value),
+          z: Number(document.getElementById("destZ").value)
+        });
+      });
+
+      document.getElementById("cancelCommand").addEventListener("click", () => {
+        cancelActiveCommand(GROUP, DRONE_ID);
+      });
+    </script>
+</body>
+</html>
