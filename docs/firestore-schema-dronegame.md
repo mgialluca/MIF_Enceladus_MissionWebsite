@@ -10,8 +10,28 @@ groupName: "HIVE" | "WhiteWhale"
 droneId: e.g. "HIVE-01" ... "HIVE-50"
 
 Fields:
-- status: "awaiting_command" | "in_route" | "collecting_sample"
+- status: "awaiting_command" | "in_route" | "collecting_sample" | "destroyed"
 - position: { x: <meters>, y: <meters>, z: <meters> }   // current true position
+- hazardWarning: null | {
+    active: true,
+    issuedAt: <epoch ms>,
+    impactAt: <epoch ms>,
+    distanceBeforeImpactM: 5,
+    hazardType: "floor" | "vent",
+    hazardId: <string>,
+    label: <string>,
+    impactPoint: { x, y, z }
+  }
+- destructionPoint: { x, y, z } | null
+- destruction: null | {
+    cause: "floor" | "vent",
+    hazardId: <string>,
+    label: <string>,
+    point: { x, y, z },
+    destroyedAt: <epoch ms>,
+    legScale: "km" | "m",
+    commandId: <string>
+  }
 - commandQueue: [
     {
       commandId: <string>,          // unique, for cancel/edit targeting
@@ -23,7 +43,21 @@ Fields:
           to: { x, y, z },
           travelTimeSeconds: <number>,
           startedAt: <timestamp|null>,
-          arrivalAt: <timestamp|null>
+          arrivalAt: <timestamp|null>,
+          collision: null | {
+            type: "floor" | "vent",
+            hazardId: <string>,
+            label: <string>,
+            t: <0-1 segment fraction>,
+            point: { x, y, z },
+            distanceFromStartM: <number>
+          },
+          warningAt: null | {
+            t: <0-1 segment fraction>,
+            distanceBeforeImpactM: 5,
+            point: { x, y, z }
+          },
+          warningIssued: <boolean|null>
         }
       ],
       currentLegIndex: 0,

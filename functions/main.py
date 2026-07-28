@@ -151,6 +151,9 @@ def reset_group(req: https_fn.Request) -> https_fn.Response:
             "status": "awaiting_command",
             "position": {"x": 0, "y": 0, "z": 0},
             "commandQueue": [],
+            "hazardWarning": None,
+            "destructionPoint": None,
+            "destruction": None,
             "lastUpdated": firestore.SERVER_TIMESTAMP
         })
 

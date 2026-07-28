@@ -2,7 +2,7 @@
 // Handles issuing commands, processing the queue over time, cancellation,
 // editing, and catch-up after a closed browser tab reopens.
 //
-// No hazard logic (floor/vent collisions, destruction) yet — that's Stage 3b.
+// Stage 3b adds hazard warnings and destroyed-drone handling.
 
 import { db } from "../../firebase-init.js";
 import {
@@ -13,6 +13,9 @@ import { MISSION_CONFIG, scaledSeconds } from "./config.js";
 import {
   decomposeMove, interpolateLegPosition, clampToBounds, roundToMeter
 } from "./grid-math.js";
+import {
+  collisionTimeMs, enrichLegWithHazards, warningTimeMs
+} from "./hazards.js";
 
 function droneRef(group, droneId) {
   return doc(db, "groups", group, "drones", droneId);
@@ -37,6 +40,17 @@ function scheduleTick(group, droneId, atTimestampMs) {
   scheduledTimers[key] = setTimeout(() => tick(group, droneId), delay);
 }
 
+function nextDueTimestamp(command) {
+  if (command.state === "active") {
+    const leg = command.legs[command.currentLegIndex];
+    const warningAt = warningTimeMs(leg);
+    if (leg.scale === "m" && warningAt && !leg.warningIssued) return warningAt;
+    return collisionTimeMs(leg) || leg.arrivalAt;
+  }
+
+  return command.collectionEndsAt;
+}
+
 /**
  * Issues a new destination command for a drone. Appends to the queue;
  * if the drone was idle, activates it immediately.
@@ -56,6 +70,7 @@ export async function issueCommand(group, droneId, destination) {
     legs: null,
     currentLegIndex: 0,
     collectionEndsAt: null,
+    hazardWarning: null,
     state: "queued"
   };
 
@@ -82,7 +97,7 @@ async function activateFrontCommand(group, droneId) {
   }
 
   const command = { ...queue[0] };
-  const legs = decomposeMove(drone.position, command.destination);
+  const legs = decomposeMove(drone.position, command.destination).map(enrichLegWithHazards);
 
   if (legs.length === 0) {
     // Destination equals current position — treat as instant arrival.
@@ -103,7 +118,29 @@ async function activateFrontCommand(group, droneId) {
 
   const newQueue = [command, ...queue.slice(1)];
   await saveDrone(group, droneId, { status: "in_route", commandQueue: newQueue });
-  scheduleTick(group, droneId, legs[0].arrivalAt);
+  scheduleTick(group, droneId, nextDueTimestamp(command));
+}
+
+async function destroyDrone(group, droneId, command, leg, now, collision) {
+  const destructionPoint = collision.point;
+  const destruction = {
+    cause: collision.type,
+    hazardId: collision.hazardId,
+    label: collision.label,
+    point: destructionPoint,
+    destroyedAt: now,
+    legScale: leg.scale,
+    commandId: command.commandId
+  };
+
+  await saveDrone(group, droneId, {
+    status: "destroyed",
+    position: destructionPoint,
+    commandQueue: [],
+    hazardWarning: null,
+    destructionPoint,
+    destruction
+  });
 }
 
 /**
@@ -122,8 +159,38 @@ async function tick(group, droneId) {
 
   if (command.state === "active") {
     const leg = command.legs[command.currentLegIndex];
+
+    const warningAt = warningTimeMs(leg);
+    if (leg.scale === "m" && warningAt && !leg.warningIssued && now >= warningAt) {
+      leg.warningIssued = true;
+      command.hazardWarning = {
+        active: true,
+        issuedAt: now,
+        impactAt: collisionTimeMs(leg),
+        distanceBeforeImpactM: leg.warningAt.distanceBeforeImpactM,
+        hazardType: leg.collision.type,
+        hazardId: leg.collision.hazardId,
+        label: leg.collision.label,
+        impactPoint: leg.collision.point
+      };
+
+      const newQueue = [command, ...queue.slice(1)];
+      await saveDrone(group, droneId, {
+        hazardWarning: command.hazardWarning,
+        commandQueue: newQueue
+      });
+      scheduleTick(group, droneId, collisionTimeMs(leg));
+      return;
+    }
+
+    const impactAt = collisionTimeMs(leg);
+    if (impactAt && now >= impactAt) {
+      await destroyDrone(group, droneId, command, leg, now, leg.collision);
+      return;
+    }
+
     if (now < leg.arrivalAt) {
-      scheduleTick(group, droneId, leg.arrivalAt);
+      scheduleTick(group, droneId, nextDueTimestamp(command));
       return;
     }
 
@@ -135,15 +202,21 @@ async function tick(group, droneId) {
       nextLeg.startedAt = now;
       nextLeg.arrivalAt = now + nextLeg.travelTimeSeconds * 1000;
       const newQueue = [command, ...queue.slice(1)];
-      await saveDrone(group, droneId, { position: newPosition, commandQueue: newQueue });
-      scheduleTick(group, droneId, nextLeg.arrivalAt);
+      await saveDrone(group, droneId, {
+        position: newPosition,
+        hazardWarning: null,
+        commandQueue: newQueue
+      });
+      scheduleTick(group, droneId, nextDueTimestamp(command));
     } else {
       command.state = "collecting";
+      command.hazardWarning = null;
       command.collectionEndsAt = now + scaledSeconds(MISSION_CONFIG.COLLECTION_TIME_SECONDS) * 1000;
       const newQueue = [command, ...queue.slice(1)];
       await saveDrone(group, droneId, {
         position: newPosition,
         status: "collecting_sample",
+        hazardWarning: null,
         commandQueue: newQueue
       });
       scheduleTick(group, droneId, command.collectionEndsAt);
@@ -187,7 +260,11 @@ export async function cancelActiveCommand(group, droneId) {
   const stoppedPosition = interpolateLegPosition(leg, Date.now());
 
   const remainingQueue = queue.slice(1);
-  await saveDrone(group, droneId, { position: stoppedPosition, commandQueue: remainingQueue });
+  await saveDrone(group, droneId, {
+    position: stoppedPosition,
+    hazardWarning: null,
+    commandQueue: remainingQueue
+  });
   await activateFrontCommand(group, droneId);
 }
 
@@ -243,9 +320,7 @@ export async function catchUpDrone(group, droneId) {
 
   const command = queue[0];
   const now = Date.now();
-  const dueTimestamp = command.state === "active"
-    ? command.legs[command.currentLegIndex].arrivalAt
-    : command.collectionEndsAt;
+  const dueTimestamp = nextDueTimestamp(command);
 
   if (dueTimestamp && now >= dueTimestamp) {
     await tick(group, droneId);
