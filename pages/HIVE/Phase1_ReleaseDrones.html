@@ -6,13 +6,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enceladus Mission Simulator - HIVE - Drone Operations</title>
     <link rel="stylesheet" href="../../css/style.css">
+
+    <!-- Import map: required so three.js's own internal modules (like
+         OrbitControls) can resolve "three" as a bare specifier. Without
+         this, the 3D view fails to load silently. -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
     <style>
+        /* Override the shared login-page body layout for this page —
+           that stylesheet centers a fixed-height box, which isn't right
+           for a wide, potentially-tall control panel like this one. */
+        body {
+            display: block;
+            height: auto;
+            min-height: 100vh;
+            align-items: normal;
+            justify-content: normal;
+            overflow-x: auto;
+        }
+
         .ops-layout {
             display: flex;
             flex-wrap: wrap;
             gap: 1.5rem;
             width: 100%;
-            max-width: 1100px;
+            max-width: 1700px;
             margin: 0 auto;
             padding: 1.5rem;
             box-sizing: border-box;
@@ -24,8 +49,8 @@
             padding: 1.25rem;
             box-shadow: 0 0 20px rgba(0,0,0,0.4);
         }
-        .fleet-panel { flex: 2; min-width: 0; }
-        .command-panel { flex: 1; min-width: 280px; position: sticky; top: 1rem; }
+        .fleet-panel { flex: 2; min-width: 420px; }
+        .command-panel { flex: 1; min-width: 300px; position: sticky; top: 1rem; }
 
         table.fleet-table {
             width: 100%;
@@ -153,8 +178,8 @@
         h1 { font-size: 1.4rem; }
         h2 { font-size: 1.05rem; color: #a8cbe0; }
 
-        /* ===== Visualization panel (additive only) ===== */
-        .viz-panel { flex: 2; min-width: 320px; }
+        /* ===== Visualization panel ===== */
+        .viz-panel { flex: 2; min-width: 420px; }
 
         .viz-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.75rem; }
         .viz-tab-btn {
@@ -175,7 +200,7 @@
             border-radius: 6px;
             display: block;
             width: 100%;
-            max-width: 360px;
+            max-width: 420px;
             margin: 0 auto;
         }
         .depth-slider-row {
@@ -183,7 +208,7 @@
             align-items: center;
             gap: 0.75rem;
             margin-top: 0.75rem;
-            max-width: 360px;
+            max-width: 420px;
             margin-left: auto;
             margin-right: auto;
         }
@@ -198,7 +223,7 @@
 
         #viz-3d-container {
             width: 100%;
-            height: 380px;
+            height: 420px;
             border-radius: 6px;
             overflow: hidden;
             background: #08161f;
@@ -261,7 +286,7 @@
             </div>
 
             <div id="tab-2d" class="viz-tab-content active">
-                <canvas id="viz-2d-canvas" width="360" height="360"></canvas>
+                <canvas id="viz-2d-canvas" width="420" height="420"></canvas>
                 <div class="depth-slider-row">
                     <input type="range" id="depth-slider" min="0" max="70" step="1" value="0">
                     <span id="depth-label">Layer: 0 km</span>
@@ -274,7 +299,7 @@
 
             <div class="viz-legend">
                 <span><span class="legend-dot" style="background:#a8cbe0;"></span>Awaiting</span>
-                <span><span class="legend-dot" style="background:#7fd8ff;"></span>En route</span>
+                <span><span class="legend-dot" style="background:#ffb347;"></span>En route</span>
                 <span><span class="legend-dot" style="background:#9dffbf;"></span>Collecting</span>
                 <span><span class="legend-dot" style="background:#ff4d4d;"></span>Destroyed</span>
             </div>
@@ -507,13 +532,15 @@
 
       const vizDroneState = {};
 
-      const GRID_X_M = MISSION_CONFIG.GRID_X_KM * 1000;
-      const GRID_Y_M = MISSION_CONFIG.GRID_Y_KM * 1000;
+      const GRID_X_KM = MISSION_CONFIG.GRID_X_KM;
+      const GRID_Y_KM = MISSION_CONFIG.GRID_Y_KM;
+      const GRID_X_M = GRID_X_KM * 1000;
+      const GRID_Y_M = GRID_Y_KM * 1000;
       const DISPLAY_Z_KM = MISSION_CONFIG.DISPLAY_Z_KM;
 
       const STATUS_COLORS = {
         awaiting_command: "#a8cbe0",
-        in_route: "#7fd8ff",
+        in_route: "#ffb347",
         collecting_sample: "#9dffbf",
         destroyed: "#ff4d4d"
       };
@@ -527,20 +554,84 @@
         return Math.round(zMeters / 1000);
       }
 
+      // ================= 2D top-down + depth slider, with grid/axes =================
       const canvas2d = document.getElementById("viz-2d-canvas");
       const ctx2d = canvas2d.getContext("2d");
       const depthSlider = document.getElementById("depth-slider");
       const depthLabel = document.getElementById("depth-label");
       depthSlider.max = String(DISPLAY_Z_KM);
 
+      // Plot-area padding leaves room for axis ticks/labels around the
+      // actual data area, rather than drawing drones edge-to-edge.
+      const PAD_LEFT = 38, PAD_RIGHT = 12, PAD_TOP = 12, PAD_BOTTOM = 30;
+      const plotW = canvas2d.width - PAD_LEFT - PAD_RIGHT;
+      const plotH = canvas2d.height - PAD_TOP - PAD_BOTTOM;
+
+      // North-up convention: Y=0 at the bottom of the plot, Y=max at the top.
+      function plotX(posXMeters) { return PAD_LEFT + (posXMeters / GRID_X_M) * plotW; }
+      function plotY(posYMeters) { return PAD_TOP + (1 - (posYMeters / GRID_Y_M)) * plotH; }
+
+      function drawAxesAndGrid() {
+        // Faint gridlines every 1km
+        ctx2d.strokeStyle = "#16324a";
+        ctx2d.lineWidth = 1;
+        for (let i = 0; i <= GRID_X_KM; i++) {
+          const x = PAD_LEFT + (i / GRID_X_KM) * plotW;
+          ctx2d.beginPath();
+          ctx2d.moveTo(x, PAD_TOP);
+          ctx2d.lineTo(x, PAD_TOP + plotH);
+          ctx2d.stroke();
+        }
+        for (let j = 0; j <= GRID_Y_KM; j++) {
+          const y = PAD_TOP + (j / GRID_Y_KM) * plotH;
+          ctx2d.beginPath();
+          ctx2d.moveTo(PAD_LEFT, y);
+          ctx2d.lineTo(PAD_LEFT + plotW, y);
+          ctx2d.stroke();
+        }
+
+        // Brighter plot-area border
+        ctx2d.strokeStyle = "#2f9bd6";
+        ctx2d.lineWidth = 1;
+        ctx2d.strokeRect(PAD_LEFT, PAD_TOP, plotW, plotH);
+
+        // Tick labels every 2km, in km for readability
+        ctx2d.fillStyle = "#7fa8c4";
+        ctx2d.font = "9px system-ui, sans-serif";
+
+        ctx2d.textAlign = "center";
+        ctx2d.textBaseline = "top";
+        for (let i = 0; i <= GRID_X_KM; i += 2) {
+          const x = PAD_LEFT + (i / GRID_X_KM) * plotW;
+          ctx2d.fillText(String(i), x, PAD_TOP + plotH + 4);
+        }
+
+        ctx2d.textAlign = "right";
+        ctx2d.textBaseline = "middle";
+        for (let j = 0; j <= GRID_Y_KM; j += 2) {
+          const y = PAD_TOP + (1 - j / GRID_Y_KM) * plotH; // north-up: higher km near top
+          ctx2d.fillText(String(j), PAD_LEFT - 5, y);
+        }
+
+        // Axis titles
+        ctx2d.textAlign = "center";
+        ctx2d.textBaseline = "alphabetic";
+        ctx2d.fillText("X (km)", PAD_LEFT + plotW / 2, canvas2d.height - 4);
+
+        ctx2d.save();
+        ctx2d.translate(10, PAD_TOP + plotH / 2);
+        ctx2d.rotate(-Math.PI / 2);
+        ctx2d.textAlign = "center";
+        ctx2d.fillText("Y (km)", 0, 0);
+        ctx2d.restore();
+      }
+
       function draw2D() {
         const layer = Number(depthSlider.value);
         depthLabel.textContent = `Layer: ${layer} km`;
 
         ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
-        ctx2d.strokeStyle = "#1c3c56";
-        ctx2d.lineWidth = 1;
-        ctx2d.strokeRect(0, 0, canvas2d.width, canvas2d.height);
+        drawAxesAndGrid();
 
         Object.entries(vizDroneState).forEach(([droneId, drone]) => {
           if (!drone) return;
@@ -548,8 +639,8 @@
           if (!pos) return;
           if (nearestKmLayer(pos.z) !== layer) return;
 
-          const px = (pos.x / GRID_X_M) * canvas2d.width;
-          const py = (pos.y / GRID_Y_M) * canvas2d.height;
+          const px = plotX(pos.x);
+          const py = plotY(pos.y);
 
           ctx2d.beginPath();
           ctx2d.arc(px, py, drone.status === "destroyed" ? 5 : 4, 0, Math.PI * 2);
@@ -561,6 +652,7 @@
       depthSlider.addEventListener("input", draw2D);
       draw2D();
 
+      // ================= Tabs =================
       const tabBtn2d = document.getElementById("tab-btn-2d");
       const tabBtn3d = document.getElementById("tab-btn-3d");
       const tabContent2d = document.getElementById("tab-2d");
@@ -592,6 +684,7 @@
       tabBtn2d.addEventListener("click", () => showTab("2d"));
       tabBtn3d.addEventListener("click", () => showTab("3d"));
 
+      // ================= 3D cube (three.js via import map) =================
       let THREE = null;
       let OrbitControls = null;
       let threeLoadAttempted = false;
@@ -600,21 +693,22 @@
       let scene, camera, renderer, controls;
       const droneMeshes = {};
 
-      function sceneX(posXMeters) { return (posXMeters / 1000) - (MISSION_CONFIG.GRID_X_KM / 2); }
-      function sceneZ(posYMeters) { return (posYMeters / 1000) - (MISSION_CONFIG.GRID_Y_KM / 2); }
+      function sceneX(posXMeters) { return (posXMeters / 1000) - (GRID_X_KM / 2); }
+      function sceneZ(posYMeters) { return (posYMeters / 1000) - (GRID_Y_KM / 2); }
       function sceneY(posZMeters) { return -(posZMeters / 1000); }
 
       async function loadThreeIfNeeded() {
         if (threeLoadAttempted) return !threeLoadFailed;
         threeLoadAttempted = true;
         try {
-          THREE = await import("https://unpkg.com/three@0.160.0/build/three.module.js");
-          const mod = await import("https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js");
+          THREE = await import("three");
+          const mod = await import("three/addons/controls/OrbitControls.js");
           OrbitControls = mod.OrbitControls;
           return true;
         } catch (err) {
           threeLoadFailed = true;
           showVizError("3D view failed to load (network or CDN issue). 2D map still works normally.");
+          console.error(err);
           return false;
         }
       }
@@ -643,9 +737,7 @@
         pointLight.position.set(20, 20, 20);
         scene.add(pointLight);
 
-        const boxGeom = new THREE.BoxGeometry(
-          MISSION_CONFIG.GRID_X_KM, DISPLAY_Z_KM, MISSION_CONFIG.GRID_Y_KM
-        );
+        const boxGeom = new THREE.BoxGeometry(GRID_X_KM, DISPLAY_Z_KM, GRID_Y_KM);
         const edges = new THREE.EdgesGeometry(boxGeom);
         const boxLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x2f9bd6 }));
         boxLines.position.set(0, -DISPLAY_Z_KM / 2, 0);
