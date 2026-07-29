@@ -802,7 +802,7 @@
 
       function getOrCreateMesh(droneId) {
         if (droneMeshes[droneId]) return droneMeshes[droneId];
-        const geom = new THREE.SphereGeometry(0.6, 16, 16);
+        const geom = new THREE.SphereGeometry(0.4, 16, 16);
         const mat = new THREE.MeshStandardMaterial({ color: 0xa8cbe0 });
         const mesh = new THREE.Mesh(geom, mat);
         scene.add(mesh);
