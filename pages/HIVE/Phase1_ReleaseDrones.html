@@ -255,14 +255,16 @@
       }
 
       function warningText(drone) {
+        // Deliberately generic: participants should discover what they hit
+        // through play, not read it off a label. The real cause/label is
+        // still stored in Firestore (drone.destruction / drone.hazardWarning)
+        // for your own debugging/admin use — just not surfaced here.
         if (drone.status === "destroyed") {
-          const d = drone.destruction;
-          if (!d) return "";
-          return `<span class="destruction-text">Destroyed: ${d.label}</span>`;
+          return `<span class="destruction-text">Destroyed</span>`;
         }
         const w = drone.hazardWarning;
         if (w && w.active) {
-          return `<span class="warning-text">⚠ ${w.label} in ~${w.distanceBeforeImpactM}m</span>`;
+          return `<span class="warning-text">⚠ Proximity warning — Within ${w.distanceBeforeImpactM}m</span>`;
         }
         return "";
       }
