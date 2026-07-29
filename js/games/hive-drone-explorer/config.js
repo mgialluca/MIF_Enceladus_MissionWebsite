@@ -6,7 +6,9 @@ export const MISSION_CONFIG = {
   // --- Grid dimensions (finalized production scale) ---
   GRID_X_KM: 10,
   GRID_Y_KM: 10,
-  GRID_Z_KM: 50,
+  TRUE_OCEAN_DEPTH_KM: 50,
+  DISPLAY_Z_KM: 70,
+  DRONE_DEPTH_RATING_KM: 70,
 
   // --- Real drone speeds ---
   KM_JUMP_SPEED_M_PER_S: 5,      // 5 meters/second during km-scale legs
@@ -18,10 +20,26 @@ export const MISSION_CONFIG = {
   // --- Fleet size ---
   DRONE_COUNT: 50,
 
+  // --- Hazards ---
+  ENABLE_FLOOR_COLLISIONS: true,
+  ENABLE_VENT_COLLISIONS: true,
+  ENABLE_METER_JUMP_WARNINGS: true,
+  IMPACT_WARNING_DISTANCE_M: 5,
+  VENTS: [
+    {
+      id: "vent-01",
+      label: "Hydrothermal Vent 01",
+      center: { x: 0, y: 0 },
+      footprintXM: 2,
+      footprintYM: 2,
+      heightM: 100
+    }
+  ],
+
   // --- Testing helper: speeds everything up during development. ---
   // Set DEBUG_FAST_MODE to false before a real workshop session.
   DEBUG_FAST_MODE: true,
-  DEBUG_TIME_SCALE: 0.0002 // 0.02 = all real-world timings run 50x faster
+  DEBUG_TIME_SCALE: 0.0002 // 0.0002 = all real-world timings run 5000x faster
 };
 
 // Applies the fast-mode scale factor (if enabled) to any real-seconds value.

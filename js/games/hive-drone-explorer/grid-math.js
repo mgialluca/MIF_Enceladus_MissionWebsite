@@ -6,7 +6,7 @@ import { MISSION_CONFIG, scaledSeconds } from "./config.js";
 export const BOUNDS_M = {
   xMax: MISSION_CONFIG.GRID_X_KM * 1000,
   yMax: MISSION_CONFIG.GRID_Y_KM * 1000,
-  zMax: MISSION_CONFIG.GRID_Z_KM * 1000
+  zMax: MISSION_CONFIG.DRONE_DEPTH_RATING_KM * 1000
 };
 
 export function roundToMeter(value) {
