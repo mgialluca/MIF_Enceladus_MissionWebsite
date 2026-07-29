@@ -4,8 +4,11 @@
 import { MISSION_CONFIG, scaledSeconds } from "./config.js";
 
 export const BOUNDS_M = {
-  xMax: MISSION_CONFIG.GRID_X_KM * 1000,
-  yMax: MISSION_CONFIG.GRID_Y_KM * 1000,
+  xMin: -(MISSION_CONFIG.GRID_X_KM * 1000) / 2,
+  xMax: (MISSION_CONFIG.GRID_X_KM * 1000) / 2,
+  yMin: -(MISSION_CONFIG.GRID_Y_KM * 1000) / 2,
+  yMax: (MISSION_CONFIG.GRID_Y_KM * 1000) / 2,
+  zMin: 0,
   zMax: MISSION_CONFIG.DRONE_DEPTH_RATING_KM * 1000
 };
 
@@ -15,9 +18,9 @@ export function roundToMeter(value) {
 
 export function clampToBounds(pos) {
   return {
-    x: Math.min(Math.max(0, pos.x), BOUNDS_M.xMax),
-    y: Math.min(Math.max(0, pos.y), BOUNDS_M.yMax),
-    z: Math.min(Math.max(0, pos.z), BOUNDS_M.zMax)
+    x: Math.min(Math.max(BOUNDS_M.xMin, pos.x), BOUNDS_M.xMax),
+    y: Math.min(Math.max(BOUNDS_M.yMin, pos.y), BOUNDS_M.yMax),
+    z: Math.min(Math.max(BOUNDS_M.zMin, pos.z), BOUNDS_M.zMax)
   };
 }
 
