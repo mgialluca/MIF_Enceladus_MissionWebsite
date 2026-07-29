@@ -24,7 +24,75 @@
             box-shadow: 0 0 20px rgba(0,0,0,0.4);
         }
         .fleet-panel { flex: 2; min-width: 0; }
+        .viz-panel { flex: 2; min-width: 320px; }
         .command-panel { flex: 1; min-width: 280px; position: sticky; top: 1rem; }
+        .ops-layout { flex-wrap: wrap; }
+
+        .viz-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.75rem; }
+        .viz-tab-btn {
+            background: #1c3c56;
+            color: #a8cbe0;
+            border: none;
+            padding: 0.4rem 0.9rem;
+            border-radius: 5px 5px 0 0;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .viz-tab-btn.active { background: #2f9bd6; color: white; }
+        .viz-tab-content { display: none; }
+        .viz-tab-content.active { display: block; }
+
+        #viz-2d-canvas {
+            background: #08161f;
+            border-radius: 6px;
+            display: block;
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+        }
+        .depth-slider-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            max-width: 360px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .depth-slider-row input[type="range"] { flex: 1; }
+        #depth-label {
+            font-size: 0.78rem;
+            color: #a8cbe0;
+            white-space: nowrap;
+            min-width: 95px;
+            text-align: right;
+        }
+
+        #viz-3d-container {
+            width: 100%;
+            height: 380px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #08161f;
+        }
+
+        .viz-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.6rem;
+            font-size: 0.72rem;
+            color: #a8cbe0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .legend-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.3rem;
+            vertical-align: middle;
+        }
 
         table.fleet-table {
             width: 100%;
@@ -177,6 +245,33 @@
             </div>
         </div>
 
+        <div class="panel viz-panel">
+            <h2>Mission Map</h2>
+            <div class="viz-tabs">
+                <button class="viz-tab-btn active" data-tab="2d" id="tab-btn-2d">2D Map</button>
+                <button class="viz-tab-btn" data-tab="3d" id="tab-btn-3d">3D Cube</button>
+            </div>
+
+            <div id="tab-2d" class="viz-tab-content active">
+                <canvas id="viz-2d-canvas" width="360" height="360"></canvas>
+                <div class="depth-slider-row">
+                    <input type="range" id="depth-slider" min="0" max="70" step="1" value="0">
+                    <span id="depth-label">Layer: 0 km</span>
+                </div>
+            </div>
+
+            <div id="tab-3d" class="viz-tab-content">
+                <div id="viz-3d-container"></div>
+            </div>
+
+            <div class="viz-legend">
+                <span><span class="legend-dot" style="background:#a8cbe0;"></span>Awaiting</span>
+                <span><span class="legend-dot" style="background:#7fd8ff;"></span>En route</span>
+                <span><span class="legend-dot" style="background:#9dffbf;"></span>Collecting</span>
+                <span><span class="legend-dot" style="background:#ff4d4d;"></span>Destroyed</span>
+            </div>
+        </div>
+
         <div class="panel command-panel">
             <h2>Issue Command</h2>
 
@@ -209,6 +304,9 @@
       import {
         issueCommand, cancelActiveCommand, removeQueuedCommand, catchUpDrone, listenToDrone
       } from "../../js/games/hive-drone-explorer/drone-engine.js";
+
+      import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+      import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 
       const GROUP = "HIVE";
       const DRONE_IDS = Array.from({ length: MISSION_CONFIG.DRONE_COUNT }, (_, i) =>
@@ -264,7 +362,7 @@
         }
         const w = drone.hazardWarning;
         if (w && w.active) {
-          return `<span class="warning-text">⚠ Proximity warning — Within ${w.distanceBeforeImpactM}m</span>`;
+          return `<span class="warning-text">⚠ Proximity warning — ${w.distanceBeforeImpactM}m</span>`;
         }
         return "";
       }
@@ -380,6 +478,194 @@
         });
       }
 
+      // ================= Visualization: shared helpers =================
+      // Uses the SAME droneState object already populated by the fleet
+      // table's listeners below — no separate Firestore subscriptions.
+
+      const GRID_X_M = MISSION_CONFIG.GRID_X_KM * 1000;
+      const GRID_Y_M = MISSION_CONFIG.GRID_Y_KM * 1000;
+      const DISPLAY_Z_KM = MISSION_CONFIG.DISPLAY_Z_KM; // false depth framing — real floor is deeper
+
+      const STATUS_COLORS = {
+        awaiting_command: "#a8cbe0",
+        in_route: "#7fd8ff",
+        collecting_sample: "#9dffbf",
+        destroyed: "#ff4d4d"
+      };
+
+      // A drone's position for display purposes: while destroyed, use the
+      // fixed destruction point (drone.position itself isn't updated after
+      // destruction). Note: this reflects the drone's LAST KNOWN waypoint —
+      // it isn't interpolated continuously mid-transit, same as the fleet
+      // table's position column.
+      function effectivePosition(drone) {
+        if (drone.status === "destroyed") return drone.destructionPoint || drone.position;
+        return drone.position;
+      }
+
+      // Rounds to the NEAREST 1km layer (not floored) per the "closest
+      // km slice" rule — e.g. z=39600 shows on layer 40, z=39300 on layer 39.
+      function nearestKmLayer(zMeters) {
+        return Math.round(zMeters / 1000);
+      }
+
+      // ================= 2D top-down + depth slider =================
+      const canvas2d = document.getElementById("viz-2d-canvas");
+      const ctx2d = canvas2d.getContext("2d");
+      const depthSlider = document.getElementById("depth-slider");
+      const depthLabel = document.getElementById("depth-label");
+      depthSlider.max = String(DISPLAY_Z_KM);
+
+      function draw2D() {
+        const layer = Number(depthSlider.value);
+        depthLabel.textContent = `Layer: ${layer} km`;
+
+        ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
+        ctx2d.strokeStyle = "#1c3c56";
+        ctx2d.lineWidth = 1;
+        ctx2d.strokeRect(0, 0, canvas2d.width, canvas2d.height);
+
+        Object.entries(droneState).forEach(([droneId, drone]) => {
+          if (!drone) return;
+          const pos = effectivePosition(drone);
+          if (!pos) return;
+          if (nearestKmLayer(pos.z) !== layer) return;
+
+          const px = (pos.x / GRID_X_M) * canvas2d.width;
+          const py = (pos.y / GRID_Y_M) * canvas2d.height;
+
+          ctx2d.beginPath();
+          ctx2d.arc(px, py, drone.status === "destroyed" ? 5 : 4, 0, Math.PI * 2);
+          ctx2d.fillStyle = STATUS_COLORS[drone.status] || "#ffffff";
+          ctx2d.fill();
+        });
+      }
+
+      depthSlider.addEventListener("input", draw2D);
+
+      // ================= 3D cube (three.js, lazy-initialized) =================
+      let scene, camera, renderer, controls;
+      const droneMeshes = {}; // droneId -> THREE.Mesh
+      let animationFrameId = null;
+      let threeInitialized = false;
+      let active3D = false;
+
+      function sceneX(posXMeters) { return (posXMeters / 1000) - (MISSION_CONFIG.GRID_X_KM / 2); }
+      function sceneZ(posYMeters) { return (posYMeters / 1000) - (MISSION_CONFIG.GRID_Y_KM / 2); }
+      function sceneY(posZMeters) { return -(posZMeters / 1000); } // deeper = further down
+
+      function init3D() {
+        if (threeInitialized) return;
+        threeInitialized = true;
+
+        const container = document.getElementById("viz-3d-container");
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x08161f);
+
+        camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(15, 12, 22);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, -DISPLAY_Z_KM / 2, 0);
+        controls.update();
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const pointLight = new THREE.PointLight(0xffffff, 0.8);
+        pointLight.position.set(20, 20, 20);
+        scene.add(pointLight);
+
+        // Wireframe box representing the mission volume, using the FALSE
+        // depth framing (stated drone depth rating) — never the true floor.
+        const boxGeom = new THREE.BoxGeometry(
+          MISSION_CONFIG.GRID_X_KM, DISPLAY_Z_KM, MISSION_CONFIG.GRID_Y_KM
+        );
+        const edges = new THREE.EdgesGeometry(boxGeom);
+        const boxLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x2f9bd6 }));
+        boxLines.position.set(0, -DISPLAY_Z_KM / 2, 0); // surface (y=0) at the top face
+        scene.add(boxLines);
+
+        window.addEventListener("resize", resize3D);
+      }
+
+      function resize3D() {
+        if (!renderer) return;
+        const container = document.getElementById("viz-3d-container");
+        const w = container.clientWidth, h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }
+
+      function getOrCreateMesh(droneId) {
+        if (droneMeshes[droneId]) return droneMeshes[droneId];
+        const geom = new THREE.SphereGeometry(0.15, 12, 12);
+        const mat = new THREE.MeshStandardMaterial({ color: 0xa8cbe0 });
+        const mesh = new THREE.Mesh(geom, mat);
+        scene.add(mesh);
+        droneMeshes[droneId] = mesh;
+        return mesh;
+      }
+
+      function draw3D() {
+        if (!scene) return;
+        Object.entries(droneState).forEach(([droneId, drone]) => {
+          if (!drone) return;
+          const pos = effectivePosition(drone);
+          if (!pos) return;
+
+          const mesh = getOrCreateMesh(droneId);
+          mesh.position.set(sceneX(pos.x), sceneY(pos.z), sceneZ(pos.y));
+          mesh.material.color.set(STATUS_COLORS[drone.status] || "#ffffff");
+          mesh.scale.setScalar(drone.status === "destroyed" ? 1.6 : 1);
+        });
+      }
+
+      function animate3D() {
+        if (!active3D) return;
+        animationFrameId = requestAnimationFrame(animate3D);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      // ================= Tab switching =================
+      const tabBtn2d = document.getElementById("tab-btn-2d");
+      const tabBtn3d = document.getElementById("tab-btn-3d");
+      const tabContent2d = document.getElementById("tab-2d");
+      const tabContent3d = document.getElementById("tab-3d");
+
+      function showTab(tab) {
+        const is2d = tab === "2d";
+        tabBtn2d.classList.toggle("active", is2d);
+        tabBtn3d.classList.toggle("active", !is2d);
+        tabContent2d.classList.toggle("active", is2d);
+        tabContent3d.classList.toggle("active", !is2d);
+
+        active3D = !is2d;
+
+        if (active3D) {
+          init3D();
+          resize3D();
+          animate3D();
+          draw3D();
+        } else {
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
+          draw2D();
+        }
+      }
+
+      tabBtn2d.addEventListener("click", () => showTab("2d"));
+      tabBtn3d.addEventListener("click", () => showTab("3d"));
+
+      draw2D(); // initial render (empty grid) before any drone data arrives
+
       // --- Subscribe to every drone, catch up any missed time, keep UI live ---
       DRONE_IDS.forEach((droneId) => {
         catchUpDrone(GROUP, droneId);
@@ -387,6 +673,7 @@
           droneState[droneId] = drone;
           if (drone) renderRow(droneId, drone);
           if (droneId === selectedDroneId) renderQueuePanel();
+          if (active3D) draw3D(); else draw2D();
         });
       });
     </script>
