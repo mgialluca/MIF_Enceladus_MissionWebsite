@@ -33,6 +33,8 @@ async function saveDrone(group, droneId, data) {
 // Tracks pending setTimeout handles per drone, so re-scheduling doesn't stack up duplicates.
 const scheduledTimers = {};
 
+const COLLECT_SAMPLE_URL = "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/collect_sample";
+
 function scheduleTick(group, droneId, atTimestampMs) {
   const key = `${group}/${droneId}`;
   if (scheduledTimers[key]) clearTimeout(scheduledTimers[key]);
@@ -144,6 +146,53 @@ async function destroyDrone(group, droneId, command, leg, now, collision) {
 }
 
 /**
+ * Calls the collect_sample Cloud Function to generate and upload a data
+ * file for the box the drone just arrived at. Failures are logged but
+ * don't block gameplay from proceeding — a missed upload here shouldn't
+ * strand a drone. The result (success or failure) is recorded on the
+ * drone document so a future UI can surface it.
+ */
+async function triggerDataCollection(group, droneId, boxCoordinates) {
+  try {
+    const response = await fetch(COLLECT_SAMPLE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        group,
+        x: boxCoordinates.x,
+        y: boxCoordinates.y,
+        z: boxCoordinates.z
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Cloud Function responded with status ${response.status}`);
+    }
+
+    const result = await response.json();
+    await saveDrone(group, droneId, {
+      lastCollection: {
+        status: "success",
+        filename: result.filename,
+        driveFileId: result.driveFileId,
+        collectedAt: Date.now(),
+        box: boxCoordinates
+      }
+    });
+  } catch (err) {
+    console.error(`Data collection failed for ${group}/${droneId} at`, boxCoordinates, err);
+    await saveDrone(group, droneId, {
+      lastCollection: {
+        status: "error",
+        errorMessage: err.message,
+        attemptedAt: Date.now(),
+        box: boxCoordinates
+      }
+    });
+  }
+}
+
+/**
  * Runs when a scheduled timer fires (leg arrival or collection end).
  * Must be safe to call "late" — this is also reused directly by catch-up.
  */
@@ -230,9 +279,8 @@ async function tick(group, droneId) {
       return;
     }
 
-    // Collection complete. Stage 4 will trigger the real Cloud Function
-    // call here, using command.destination as the box coordinates.
-    console.log(`[placeholder] Would collect data at`, command.destination, `for ${group}/${droneId}`);
+    // Collection complete — trigger the real data-generation/upload pipeline.
+    await triggerDataCollection(group, droneId, command.destination);
 
     const remainingQueue = queue.slice(1);
     await saveDrone(group, droneId, { commandQueue: remainingQueue });
