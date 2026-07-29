@@ -741,6 +741,7 @@
         controls.maxDistance = 250;
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
+        controls.zoomToCursor = true; // zoom in/out toward wherever the cursor is, not just the center
         controls.update();
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -755,15 +756,36 @@
         boxLines.position.set(0, -DISPLAY_Z_KM / 2, 0);
         scene.add(boxLines);
 
-        // 1km-square grid on the surface (top face) and the bottom face,
-        // for spatial reference while rotating/panning.
-        const topGrid = new THREE.GridHelper(GRID_X_KM, GRID_X_KM, 0x2f9bd6, 0x16324a);
-        topGrid.position.set(0, 0, 0);
-        scene.add(topGrid);
+        // ===== Grid throughout the volume, not just top/bottom =====
+        // Horizontal 1km-square reference planes at several depths, evenly
+        // spaced through the full height, so there's always a nearby plane
+        // to judge scale against no matter how deep you're looking.
+        const NUM_HORIZONTAL_PLANES = 8; // e.g. every 10km across a 70km depth
+        for (let i = 0; i <= NUM_HORIZONTAL_PLANES; i++) {
+          const depthFraction = i / NUM_HORIZONTAL_PLANES;
+          const planeY = -depthFraction * DISPLAY_Z_KM;
+          const grid = new THREE.GridHelper(GRID_X_KM, GRID_X_KM, 0x2f9bd6, 0x16324a);
+          grid.position.set(0, planeY, 0);
+          grid.material.opacity = 0.35;
+          grid.material.transparent = true;
+          scene.add(grid);
+        }
 
-        const bottomGrid = new THREE.GridHelper(GRID_X_KM, GRID_X_KM, 0x2f9bd6, 0x16324a);
-        bottomGrid.position.set(0, -DISPLAY_Z_KM, 0);
-        scene.add(bottomGrid);
+        // Vertical lattice lines connecting every 1km (x,y) grid intersection
+        // from the surface straight down to the floor — makes the volume
+        // read as a true 3D grid rather than a stack of flat squares.
+        const latticePoints = [];
+        for (let xi = -GRID_X_KM / 2; xi <= GRID_X_KM / 2; xi++) {
+          for (let yi = -GRID_Y_KM / 2; yi <= GRID_Y_KM / 2; yi++) {
+            latticePoints.push(xi, 0, yi);
+            latticePoints.push(xi, -DISPLAY_Z_KM, yi);
+          }
+        }
+        const latticeGeom = new THREE.BufferGeometry();
+        latticeGeom.setAttribute("position", new THREE.Float32BufferAttribute(latticePoints, 3));
+        const latticeMat = new THREE.LineBasicMaterial({ color: 0x16324a, transparent: true, opacity: 0.35 });
+        const lattice = new THREE.LineSegments(latticeGeom, latticeMat);
+        scene.add(lattice);
 
         window.addEventListener("resize", resize3D);
       }
@@ -780,7 +802,7 @@
 
       function getOrCreateMesh(droneId) {
         if (droneMeshes[droneId]) return droneMeshes[droneId];
-        const geom = new THREE.SphereGeometry(0.3, 14, 14);
+        const geom = new THREE.SphereGeometry(0.6, 16, 16);
         const mat = new THREE.MeshStandardMaterial({ color: 0xa8cbe0 });
         const mesh = new THREE.Mesh(geom, mat);
         scene.add(mesh);
