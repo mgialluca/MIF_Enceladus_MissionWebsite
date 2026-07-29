@@ -38,7 +38,7 @@ export const MISSION_CONFIG = {
 
   // --- Testing helper: speeds everything up during development. ---
   // Set DEBUG_FAST_MODE to false before a real workshop session.
-  DEBUG_FAST_MODE: true,
+  DEBUG_FAST_MODE: false,
   DEBUG_TIME_SCALE: 0.0002 // 0.0002 = all real-world timings run 5000x faster
 };
 
