@@ -362,7 +362,7 @@
         }
         const w = drone.hazardWarning;
         if (w && w.active) {
-          return `<span class="warning-text">⚠ Proximity warning — ${w.distanceBeforeImpactM}m</span>`;
+          return `<span class="warning-text">⚠ Proximity warning — Within ${w.distanceBeforeImpactM}m</span>`;
         }
         return "";
       }
