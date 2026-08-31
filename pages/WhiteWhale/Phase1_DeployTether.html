@@ -102,7 +102,7 @@
 
         #viz-canvas {
             background: #08161f; border-radius: 6px; display: block;
-            width: 100%; max-width: 420px; margin: 0 auto;
+            width: 100%; max-width: 460px; margin: 0 auto;
         }
         .viz-legend {
             display: flex; gap: 0.9rem; flex-wrap: wrap; justify-content: center;
@@ -144,7 +144,7 @@
 
         <div class="panel viz-panel">
             <h2>Depth Profile</h2>
-            <canvas id="viz-canvas" width="420" height="540"></canvas>
+            <canvas id="viz-canvas" width="460" height="560"></canvas>
             <div class="viz-legend">
                 <span><span class="legend-dot" style="background:#6c8ba3;"></span>Awaiting Depth</span>
                 <span><span class="legend-dot" style="background:#ffb347;"></span>En Route</span>
@@ -293,7 +293,7 @@
             note.textContent = `✓ ${lc.filename}`;
             note.className = "collection-note success";
           } else if (lc?.status === "error") {
-            note.textContent = "⚠ collection failed — see console";
+            note.textContent = `⚠ ${(lc.errorMessage || "collection failed").slice(0, 70)}`;
             note.className = "collection-note error";
           } else {
             note.textContent = "";
@@ -308,7 +308,7 @@
       const W = canvas.width, H = canvas.height;
       const TOP_Y = 54, BOTTOM_Y = H - 44;
       const PLOT_H = BOTTOM_Y - TOP_Y;
-      const TETHER_X = Math.round(W * 0.34);
+      const TETHER_X = Math.round(W * 0.26);
 
       function depthToY(depthM) {
         return TOP_Y + (depthM / OCEAN_DEPTH_M) * PLOT_H;
@@ -349,30 +349,65 @@
           ctx.stroke();
         }
 
-        // Stations
-        (tether?.stations || []).forEach((s) => {
-          const d = stationVisualDepthM(s, now);
-          if (d == null) return;
-          const y = depthToY(d);
-          const size = 14;
+        // Stations. Markers are kept clear of the boundary lines (INSET), and
+        // when several sit at nearly the same depth they fan out in x and
+        // their labels stagger in y so nothing draws on top of anything else.
+        const MARKER = 14;
+        const INSET = 12;      // min gap between a marker and a boundary line
+        const LANE_STEP = 18;  // x offset per stacked marker
+        const TEXT_LINE = 13;  // y offset per stacked label
 
-          let alpha = 1;
-          if (s.status === "collecting_data") {
-            alpha = 0.55 + 0.45 * Math.abs(Math.sin(now / 220));
-          }
-          ctx.globalAlpha = alpha;
-          ctx.fillStyle = STATUS_COLOR[s.status] || "#ffffff";
-          roundRect(TETHER_X - size / 2, y - size / 2, size, size, 3);
-          ctx.fill();
-          ctx.globalAlpha = 1;
+        const clampY = (y) => Math.min(Math.max(y, TOP_Y + INSET), BOTTOM_Y - INSET);
 
-          ctx.fillStyle = "#cfeaff";
-          ctx.font = "11px system-ui, sans-serif";
-          ctx.textAlign = "left";
-          ctx.textBaseline = "middle";
-          const depthTxt = s.assignedDepthM != null ? `${s.assignedDepthM} m` : "—";
-          ctx.fillText(`${s.label} — ${depthTxt} — ${STATUS_LABEL[s.status]}`, TETHER_X + size, y);
-        });
+        const drawable = (tether?.stations || [])
+          .map((s) => ({ s, d: stationVisualDepthM(s, now) }))
+          .filter((o) => o.d != null)
+          .map((o) => ({ ...o, y: clampY(depthToY(o.d)) }))
+          .sort((a, b) => a.y - b.y);
+
+        // group consecutive near-equal-y markers into clusters
+        const clusters = [];
+        for (const o of drawable) {
+          const last = clusters[clusters.length - 1];
+          if (last && o.y - last[last.length - 1].y < MARKER + 6) last.push(o);
+          else clusters.push([o]);
+        }
+
+        for (const cluster of clusters) {
+          const meanY = cluster.reduce((sum, o) => sum + o.y, 0) / cluster.length;
+          const textColX = TETHER_X + cluster.length * LANE_STEP + 10;
+
+          cluster.forEach((o, i) => {
+            const s = o.s;
+            const markerX = TETHER_X + i * LANE_STEP;
+            const textY = meanY + (i - (cluster.length - 1) / 2) * TEXT_LINE;
+
+            // thin connector from marker to its (possibly offset) label
+            ctx.strokeStyle = "rgba(207,234,255,0.35)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(markerX + MARKER / 2, o.y);
+            ctx.lineTo(textColX - 4, textY);
+            ctx.stroke();
+
+            let alpha = 1;
+            if (s.status === "collecting_data") {
+              alpha = 0.55 + 0.45 * Math.abs(Math.sin(now / 220));
+            }
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = STATUS_COLOR[s.status] || "#ffffff";
+            roundRect(markerX - MARKER / 2, o.y - MARKER / 2, MARKER, MARKER, 3);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            ctx.fillStyle = "#cfeaff";
+            ctx.font = "10px system-ui, sans-serif";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            const depthTxt = s.assignedDepthM != null ? `${s.assignedDepthM} m` : "—";
+            ctx.fillText(`${s.label} · ${depthTxt} · ${STATUS_LABEL[s.status]}`, textColX, textY);
+          });
+        }
       }
 
       function roundRect(x, y, w, h, r) {

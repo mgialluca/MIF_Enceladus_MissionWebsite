@@ -255,6 +255,7 @@ export async function collectSample(stationId) {
  * a missed upload shouldn't strand the station.
  */
 async function triggerStationCollection(station) {
+  let rawResponse = "";
   try {
     const response = await fetch(COLLECT_STATION_SAMPLE_URL, {
       method: "POST",
@@ -266,10 +267,11 @@ async function triggerStationCollection(station) {
         depthM: station.assignedDepthM
       })
     });
+    rawResponse = await response.text();
     if (!response.ok) {
-      throw new Error(`Cloud Function responded with status ${response.status}`);
+      throw new Error(`Cloud Function HTTP ${response.status}: ${rawResponse.slice(0, 200)}`);
     }
-    const result = await response.json();
+    const result = JSON.parse(rawResponse);
     await patchStation(station.id, {
       lastCollection: {
         status: "success",
@@ -280,7 +282,10 @@ async function triggerStationCollection(station) {
       }
     });
   } catch (err) {
-    console.error(`Station sample collection failed for ${GROUP}/${station.id}`, err);
+    console.error(
+      `Station sample collection failed for ${GROUP}/${station.id}`,
+      err, "\nRaw response body:", rawResponse
+    );
     await patchStation(station.id, {
       lastCollection: {
         status: "error",

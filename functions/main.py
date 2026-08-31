@@ -22,6 +22,7 @@
 
 import io
 import csv
+import json
 from datetime import datetime, timezone
 from firebase_functions import https_fn, options
 from firebase_admin import initialize_app, firestore
@@ -106,7 +107,7 @@ def collect_sample(req: https_fn.Request) -> https_fn.Response:
     file_id = upload_to_drive(GROUP_DRIVE_FOLDERS[group], filename, csv_content)
 
     return https_fn.Response(
-        {"status": "ok", "filename": filename, "driveFileId": file_id},
+        json.dumps({"status": "ok", "filename": filename, "driveFileId": file_id}),
         status=200,
         content_type="application/json",
     )
@@ -181,12 +182,12 @@ def collect_station_sample(req: https_fn.Request) -> https_fn.Response:
     )
 
     return https_fn.Response(
-        {
+        json.dumps({
             "status": "ok",
             "filename": filename,
             "driveFileId": file_id,
             "sampleNumber": sample_number,
-        },
+        }),
         status=200,
         content_type="application/json",
     )

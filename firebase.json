@@ -3,7 +3,7 @@
     {
       "source": "functions",
       "codebase": "default",
-      "runtime": "python310"
+      "runtime": "python312"
     }
   ],
   "hosting": {
