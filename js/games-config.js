@@ -12,6 +12,6 @@ export const GAMES_CONFIG = {
   ],
   WhiteWhale: [
     //{ id: "dashboard", title: "Mission Dashboard", file: "dashboard.html" }
-    // { id: "sonar-mapping", title: "Sonar Mapping", file: "sonar-mapping.html" },
+    { id: "deploy-tether", title: "Deploy Tether — Ocean Depth & Stations", file: "Phase1_DeployTether.html" },
   ]
 };

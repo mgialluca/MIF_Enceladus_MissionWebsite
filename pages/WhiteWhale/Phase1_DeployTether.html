@@ -1,0 +1,403 @@
+<!-- WhiteWhale game page: tether deployment + station data collection.
+     Participant-only, WhiteWhale group. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enceladus Mission Simulator - WhiteWhale - Tether Deployment</title>
+    <link rel="stylesheet" href="../../css/style.css">
+
+    <style>
+        /* Override the shared centered login-box layout for this wide panel. */
+        body {
+            display: block;
+            height: auto;
+            min-height: 100vh;
+            align-items: normal;
+            justify-content: normal;
+            overflow-x: auto;
+        }
+
+        .ops-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            box-sizing: border-box;
+            align-items: flex-start;
+        }
+        .panel {
+            background: #12293d;
+            border-radius: 10px;
+            padding: 1.25rem;
+            box-shadow: 0 0 20px rgba(0,0,0,0.4);
+        }
+        .control-panel { flex: 1 1 460px; min-width: 340px; }
+        .viz-panel { flex: 1 1 420px; min-width: 320px; }
+
+        h1 { font-size: 1.4rem; margin-top: 0; }
+        h2 { font-size: 1.05rem; color: #a8cbe0; margin: 0 0 0.5rem; }
+
+        .deploy-row { margin-bottom: 1.25rem; }
+        .big-btn {
+            width: 100%;
+            padding: 0.7rem;
+            border: none;
+            border-radius: 5px;
+            background: #2f9bd6;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+        .big-btn:hover:not(:disabled) { background: #237bab; }
+        .big-btn:disabled { background: #2c4a5e; color: #8fb0c4; cursor: not-allowed; }
+
+        .depth-readout {
+            margin-top: 0.6rem;
+            font-size: 0.9rem;
+            font-family: monospace;
+            color: #cfeaff;
+        }
+        .depth-readout.unknown { color: #ff6b6b; }
+
+        table.station-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .station-table th {
+            text-align: left; color: #a8cbe0; padding: 0.4rem 0.4rem;
+            border-bottom: 1px solid #1c3c56;
+        }
+        .station-table td {
+            padding: 0.5rem 0.4rem; border-bottom: 1px solid #1c3c56; vertical-align: top;
+        }
+        .station-table input {
+            width: 100%; padding: 0.35rem; border-radius: 5px; border: none; box-sizing: border-box;
+        }
+        .station-table input:disabled { background: #2c4a5e; color: #9fbccf; }
+
+        .status-badge {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+            font-size: 0.72rem; font-weight: bold; white-space: nowrap; color: #0b1e2d;
+        }
+
+        .collection-note { font-size: 0.72rem; margin-top: 0.25rem; }
+        .collection-note.success { color: #9dffbf; }
+        .collection-note.error { color: #ff8080; }
+
+        .collect-btn {
+            background: #2f9bd6; color: white; border: none; border-radius: 4px;
+            padding: 0.35rem 0.6rem; font-size: 0.78rem; cursor: pointer; white-space: nowrap;
+        }
+        .collect-btn:hover:not(:disabled) { background: #237bab; }
+        .collect-btn:disabled { background: #3a3a3a; color: #777; cursor: not-allowed; }
+
+        #set-depths-btn { margin-top: 1rem; }
+
+        .feedback-msg { margin-top: 0.6rem; font-size: 0.82rem; min-height: 1rem; }
+        .feedback-msg.error { color: #ff8080; }
+        .feedback-msg.success { color: #9dffbf; }
+
+        #viz-canvas {
+            background: #08161f; border-radius: 6px; display: block;
+            width: 100%; max-width: 420px; margin: 0 auto;
+        }
+        .viz-legend {
+            display: flex; gap: 0.9rem; flex-wrap: wrap; justify-content: center;
+            margin-top: 0.7rem; font-size: 0.72rem; color: #a8cbe0;
+        }
+        .legend-dot {
+            display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+            margin-right: 0.3rem; vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ops-layout">
+        <div class="panel control-panel">
+            <h1>WhiteWhale Tether Operations</h1>
+
+            <div class="deploy-row">
+                <button id="deploy-tether-btn" class="big-btn">Deploy Tether — Determine Ocean Depth</button>
+                <p id="depth-readout" class="depth-readout unknown">Ocean depth: unknown</p>
+            </div>
+
+            <h2>Stations</h2>
+            <table class="station-table">
+                <thead>
+                    <tr>
+                        <th>Station</th>
+                        <th>Depth (m)</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="station-table-body"><!-- rows populated by JS --></tbody>
+            </table>
+
+            <button id="set-depths-btn" class="big-btn">Set Station Depths</button>
+            <p id="set-depths-feedback" class="feedback-msg"></p>
+        </div>
+
+        <div class="panel viz-panel">
+            <h2>Depth Profile</h2>
+            <canvas id="viz-canvas" width="420" height="540"></canvas>
+            <div class="viz-legend">
+                <span><span class="legend-dot" style="background:#6c8ba3;"></span>Awaiting Depth</span>
+                <span><span class="legend-dot" style="background:#ffb347;"></span>En Route</span>
+                <span><span class="legend-dot" style="background:#c9a0ff;"></span>Deploying</span>
+                <span><span class="legend-dot" style="background:#9dffbf;"></span>Standby</span>
+                <span><span class="legend-dot" style="background:#7fd8ff;"></span>Collecting Data</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="../../js/auth-guard.js"></script>
+    <script>
+      const user = requireAuth("participant", "WhiteWhale", "../../index.html");
+    </script>
+
+    <script type="module">
+      import { TETHER_CONFIG } from "../../js/games/whitewhale-tether/config.js";
+      import {
+        deployTether, setStationDepths, collectSample,
+        catchUpTether, listenToTether,
+        initialStations, tetherVisualFraction, stationVisualDepthM
+      } from "../../js/games/whitewhale-tether/tether-engine.js";
+
+      const { OCEAN_DEPTH_M } = TETHER_CONFIG;
+
+      const STATUS_LABEL = {
+        awaiting_depth_assignment: "Awaiting Depth Assignment",
+        en_route: "En Route",
+        deploying: "Deploying",
+        standby: "Standby",
+        collecting_data: "Collecting Data"
+      };
+      const STATUS_COLOR = {
+        awaiting_depth_assignment: "#6c8ba3",
+        en_route: "#ffb347",
+        deploying: "#c9a0ff",
+        standby: "#9dffbf",
+        collecting_data: "#7fd8ff"
+      };
+
+      let tether = null; // latest Firestore snapshot
+
+      // ---------- Build station rows once ----------
+      const tbody = document.getElementById("station-table-body");
+      initialStations().forEach((s, i) => {
+        const tr = document.createElement("tr");
+        tr.id = `row-${s.id}`;
+        tr.innerHTML = `
+          <td>${s.label}</td>
+          <td><input type="number" min="0" max="${OCEAN_DEPTH_M}" step="1"
+                     id="depth-${s.id}" placeholder="0–${OCEAN_DEPTH_M}" disabled></td>
+          <td class="cell-status"></td>
+          <td>
+            <button class="collect-btn" data-station="${s.id}" disabled>Collect Sample</button>
+            <div class="collection-note" id="note-${s.id}"></div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // ---------- Actions ----------
+      const deployBtn = document.getElementById("deploy-tether-btn");
+      deployBtn.addEventListener("click", () => {
+        deployBtn.disabled = true;
+        deployTether().catch((err) => {
+          console.error(err);
+          deployBtn.disabled = false;
+        });
+      });
+
+      const setDepthsBtn = document.getElementById("set-depths-btn");
+      const setDepthsFeedback = document.getElementById("set-depths-feedback");
+      setDepthsBtn.addEventListener("click", async () => {
+        setDepthsFeedback.textContent = "";
+        setDepthsFeedback.className = "feedback-msg";
+        const raw = initialStations().map((s) => document.getElementById(`depth-${s.id}`).value.trim());
+        try {
+          await setStationDepths(raw);
+          setDepthsFeedback.textContent = "Station depths locked in. Deployment started.";
+          setDepthsFeedback.classList.add("success");
+        } catch (err) {
+          setDepthsFeedback.textContent = err.message;
+          setDepthsFeedback.classList.add("error");
+        }
+      });
+
+      tbody.addEventListener("click", async (e) => {
+        const btn = e.target.closest(".collect-btn");
+        if (!btn) return;
+        btn.disabled = true;
+        try {
+          await collectSample(btn.dataset.station);
+        } catch (err) {
+          console.error(err);
+        }
+      });
+
+      // ---------- Render control panel from state ----------
+      function render() {
+        const status = tether?.tetherStatus || "not_deployed";
+        const locked = !!tether?.depthsLocked;
+
+        // Deploy button + depth readout
+        deployBtn.disabled = status !== "not_deployed";
+        const readout = document.getElementById("depth-readout");
+        if (status === "not_deployed") {
+          deployBtn.textContent = "Deploy Tether — Determine Ocean Depth";
+          readout.textContent = "Ocean depth: unknown";
+          readout.className = "depth-readout unknown";
+        } else if (status === "deploying") {
+          deployBtn.textContent = "Deploying tether…";
+          readout.textContent = `Deploying tether… (~${TETHER_CONFIG.TETHER_DEPLOY_SECONDS}s)`;
+          readout.className = "depth-readout unknown";
+        } else {
+          deployBtn.textContent = "Tether Deployed";
+          readout.textContent = `Ocean depth: ${tether.oceanDepthM} m`;
+          readout.className = "depth-readout";
+        }
+
+        // Set-depths button
+        setDepthsBtn.disabled = status !== "deployed" || locked;
+        setDepthsBtn.textContent = locked ? "Station Depths Set" : "Set Station Depths";
+
+        // Station rows
+        const stations = tether?.stations || initialStations();
+        stations.forEach((s) => {
+          const input = document.getElementById(`depth-${s.id}`);
+          if (locked) {
+            input.value = s.assignedDepthM ?? "";
+            input.disabled = true;
+          } else {
+            input.disabled = status !== "deployed";
+          }
+
+          const statusCell = document.querySelector(`#row-${s.id} .cell-status`);
+          statusCell.innerHTML =
+            `<span class="status-badge" style="background:${STATUS_COLOR[s.status]}">` +
+            `${STATUS_LABEL[s.status]}</span>`;
+
+          const collectBtn = document.querySelector(`#row-${s.id} .collect-btn`);
+          collectBtn.disabled = s.status !== "standby";
+
+          const note = document.getElementById(`note-${s.id}`);
+          const lc = s.lastCollection;
+          if (lc?.status === "success") {
+            note.textContent = `✓ ${lc.filename}`;
+            note.className = "collection-note success";
+          } else if (lc?.status === "error") {
+            note.textContent = "⚠ collection failed — see console";
+            note.className = "collection-note error";
+          } else {
+            note.textContent = "";
+            note.className = "collection-note";
+          }
+        });
+      }
+
+      // ---------- Visualization ----------
+      const canvas = document.getElementById("viz-canvas");
+      const ctx = canvas.getContext("2d");
+      const W = canvas.width, H = canvas.height;
+      const TOP_Y = 54, BOTTOM_Y = H - 44;
+      const PLOT_H = BOTTOM_Y - TOP_Y;
+      const TETHER_X = Math.round(W * 0.34);
+
+      function depthToY(depthM) {
+        return TOP_Y + (depthM / OCEAN_DEPTH_M) * PLOT_H;
+      }
+
+      function draw() {
+        const now = Date.now();
+        ctx.clearRect(0, 0, W, H);
+
+        const deployed = tether?.tetherStatus === "deployed";
+
+        // Boundary lines
+        ctx.strokeStyle = "#a8cbe0";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(14, TOP_Y); ctx.lineTo(W - 14, TOP_Y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(14, BOTTOM_Y); ctx.lineTo(W - 14, BOTTOM_Y); ctx.stroke();
+
+        ctx.font = "12px system-ui, sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = "#a8cbe0";
+        ctx.fillText("Ice Interface (Depth, Z = 0 m)", 14, TOP_Y - 8);
+
+        ctx.fillStyle = deployed ? "#a8cbe0" : "#ff6b6b";
+        const floorLabel = deployed
+          ? `Sea Floor (Depth Z = ${OCEAN_DEPTH_M} m)`
+          : "Sea Floor (Depth Z = ?? m)";
+        ctx.fillText(floorLabel, 14, BOTTOM_Y + 18);
+
+        // Tether
+        const frac = tetherVisualFraction(tether, now);
+        if (frac > 0) {
+          ctx.strokeStyle = deployed ? "#2f9bd6" : "#ffb347";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(TETHER_X, TOP_Y);
+          ctx.lineTo(TETHER_X, TOP_Y + frac * PLOT_H);
+          ctx.stroke();
+        }
+
+        // Stations
+        (tether?.stations || []).forEach((s) => {
+          const d = stationVisualDepthM(s, now);
+          if (d == null) return;
+          const y = depthToY(d);
+          const size = 14;
+
+          let alpha = 1;
+          if (s.status === "collecting_data") {
+            alpha = 0.55 + 0.45 * Math.abs(Math.sin(now / 220));
+          }
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = STATUS_COLOR[s.status] || "#ffffff";
+          roundRect(TETHER_X - size / 2, y - size / 2, size, size, 3);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          ctx.fillStyle = "#cfeaff";
+          ctx.font = "11px system-ui, sans-serif";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          const depthTxt = s.assignedDepthM != null ? `${s.assignedDepthM} m` : "—";
+          ctx.fillText(`${s.label} — ${depthTxt} — ${STATUS_LABEL[s.status]}`, TETHER_X + size, y);
+        });
+      }
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function frameLoop() {
+        draw();
+        requestAnimationFrame(frameLoop);
+      }
+      requestAnimationFrame(frameLoop);
+
+      // ---------- Wire up live state ----------
+      listenToTether((data) => {
+        tether = data;
+        render();
+      });
+      catchUpTether().catch(console.error);
+      render();
+    </script>
+</body>
+</html>

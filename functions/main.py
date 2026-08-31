@@ -22,6 +22,7 @@
 
 import io
 import csv
+from datetime import datetime, timezone
 from firebase_functions import https_fn, options
 from firebase_admin import initialize_app, firestore
 import google.auth
@@ -65,13 +66,13 @@ def get_next_version_suffix(group, box_id):
     return update_in_transaction(transaction)
 
 
-def upload_to_drive(folder_id, filename, csv_content):
+def upload_to_drive(folder_id, filename, file_content, mimetype="text/csv"):
     credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/drive"])
     drive_service = build("drive", "v3", credentials=credentials)
 
     file_metadata = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(
-        io.BytesIO(csv_content.encode("utf-8")), mimetype="text/csv"
+        io.BytesIO(file_content.encode("utf-8")), mimetype=mimetype
     )
     uploaded = drive_service.files().create(
         body=file_metadata,
@@ -110,9 +111,91 @@ def collect_sample(req: https_fn.Request) -> https_fn.Response:
         content_type="application/json",
     )
 
+
+# ======================================================================
+# WhiteWhale tether game — station sample collection.
+# Deliberately SEPARATE from collect_sample above: different file format,
+# different naming, WhiteWhale Drive folder only, its own Firestore counter.
+# ======================================================================
+
+def generate_placeholder_station_file(station_label, sample_number, depth_m):
+    """Placeholder data generator for WhiteWhale tether stations.
+    Replace later with the real science model. Isolated here so swapping the
+    file body doesn't touch the request handler."""
+    lines = [
+        f"Station: {station_label}",
+        f"Sample number: {sample_number}",
+        f"Assigned depth (m): {depth_m}",
+        f"Collected (UTC): {datetime.now(timezone.utc).isoformat()}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def get_next_station_sample_number(group, station_id):
+    """Firestore atomic counter so repeated collections at one station get
+    _Sample1, _Sample2, ... even under concurrent presses."""
+    db = firestore.client()
+    doc_ref = (
+        db.collection("groups").document(group)
+        .collection("stationSamples").document(station_id)
+    )
+
+    @firestore.transactional
+    def update_in_transaction(transaction):
+        snapshot = doc_ref.get(transaction=transaction)
+        current = snapshot.get("sampleCount") if snapshot.exists else 0
+        new_count = current + 1
+        transaction.set(doc_ref, {"sampleCount": new_count}, merge=True)
+        return new_count
+
+    transaction = db.transaction()
+    return update_in_transaction(transaction)
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def collect_station_sample(req: https_fn.Request) -> https_fn.Response:
+    data = req.get_json(silent=True)
+    if not data:
+        return https_fn.Response("Missing JSON body", status=400)
+
+    group = data.get("group")
+    station_id = data.get("stationId")
+    station_label = data.get("stationLabel") or station_id
+    depth_m = data.get("depthM")
+
+    if group not in GROUP_DRIVE_FOLDERS:
+        return https_fn.Response(f"Unknown group: {group}", status=400)
+    if not station_id:
+        return https_fn.Response("Missing stationId", status=400)
+
+    sample_number = get_next_station_sample_number(group, station_id)
+
+    # "Station 3" -> "Station3"; fall back to the raw id if no digits present.
+    digits = "".join(ch for ch in str(station_label) if ch.isdigit())
+    name_stem = f"Station{digits}" if digits else str(station_id)
+    filename = f"{name_stem}_Sample{sample_number}.txt"
+
+    content = generate_placeholder_station_file(station_label, sample_number, depth_m)
+    file_id = upload_to_drive(
+        GROUP_DRIVE_FOLDERS[group], filename, content, mimetype="text/plain"
+    )
+
+    return https_fn.Response(
+        {
+            "status": "ok",
+            "filename": filename,
+            "driveFileId": file_id,
+            "sampleNumber": sample_number,
+        },
+        status=200,
+        content_type="application/json",
+    )
+
+
 # ... (existing imports and code stay above this) ...
 
 DRONE_COUNT = 50  # keep in sync with js/games/hive-drone-explorer/config.js
+STATION_COUNT = 4  # keep in sync with js/games/whitewhale-tether/config.js
 
 def delete_collection(collection_ref, batch_size=100):
     """Firestore has no single 'delete collection' call — must delete
@@ -125,6 +208,61 @@ def delete_collection(collection_ref, batch_size=100):
     if deleted >= batch_size:
         # more may remain — recurse
         delete_collection(collection_ref, batch_size)
+
+
+def _reset_hive(group_ref, group):
+    """HIVE drone-explorer reset: wipe box-visit counters and every drone."""
+    delete_collection(group_ref.collection("boxVisits"))
+
+    drones_ref = group_ref.collection("drones")
+    for i in range(1, DRONE_COUNT + 1):
+        drone_id = f"{group}-{i:02d}"
+        drones_ref.document(drone_id).set({
+            "status": "awaiting_command",
+            "position": {"x": 0, "y": 0, "z": 0},
+            "commandQueue": [],
+            "hazardWarning": None,
+            "destructionPoint": None,
+            "destruction": None,
+            "lastUpdated": firestore.SERVER_TIMESTAMP
+        })
+    return {"dronesReset": DRONE_COUNT}
+
+
+def _initial_tether_stations():
+    """Must match initialStations() in js/games/whitewhale-tether/tether-engine.js."""
+    return [
+        {
+            "id": f"station-{i}",
+            "label": f"Station {i}",
+            "assignedDepthM": None,
+            "status": "awaiting_depth_assignment",
+            "travelStartedAt": None,
+            "arrivalAt": None,
+            "deployingEndsAt": None,
+            "collectingEndsAt": None,
+            "lastCollection": None,
+        }
+        for i in range(1, STATION_COUNT + 1)
+    ]
+
+
+def _reset_whitewhale(group_ref):
+    """WhiteWhale tether reset: wipe sample counters and the tether state doc.
+    Does NOT touch drones — WhiteWhale has none."""
+    delete_collection(group_ref.collection("stationSamples"))
+
+    group_ref.collection("tether").document("state").set({
+        "tetherStatus": "not_deployed",
+        "tetherDeployStartedAt": None,
+        "tetherDeployedAt": None,
+        "oceanDepthM": None,
+        "depthsLocked": False,
+        "depthsSetAt": None,
+        "stations": _initial_tether_stations(),
+        "lastUpdated": firestore.SERVER_TIMESTAMP,
+    })
+    return {"stationsReset": STATION_COUNT}
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
@@ -140,25 +278,15 @@ def reset_group(req: https_fn.Request) -> https_fn.Response:
     db = firestore.client()
     group_ref = db.collection("groups").document(group)
 
-    # Wipe visit counters so file-versioning (_V2, _V3...) starts fresh
-    delete_collection(group_ref.collection("boxVisits"))
-
-    # Reset every drone to its starting state
-    drones_ref = group_ref.collection("drones")
-    for i in range(1, DRONE_COUNT + 1):
-        drone_id = f"{group}-{i:02d}"
-        drones_ref.document(drone_id).set({
-            "status": "awaiting_command",
-            "position": {"x": 0, "y": 0, "z": 0},
-            "commandQueue": [],
-            "hazardWarning": None,
-            "destructionPoint": None,
-            "destruction": None,
-            "lastUpdated": firestore.SERVER_TIMESTAMP
-        })
+    # Each group's first game has its own reset needs. "Reset WhiteWhale"
+    # touches only the tether game; "Reset HIVE" touches only the drone game.
+    if group == "WhiteWhale":
+        result = _reset_whitewhale(group_ref)
+    else:
+        result = _reset_hive(group_ref, group)
 
     return https_fn.Response(
-        {"status": "ok", "group": group, "dronesReset": DRONE_COUNT},
+        {"status": "ok", "group": group, **result},
         status=200,
         content_type="application/json"
     )
