@@ -21,9 +21,9 @@ export const TETHER_CONFIG = {
   STATION_DEPLOYING_SECONDS: 10,      // "Deploying" phase once a station reaches its depth
   SAMPLE_COLLECT_SECONDS: 10,         // "Collecting Data" phase per Collect Sample press
 
-  // --- Cloud Function (separate from HIVE's collect_sample) ---
-  COLLECT_STATION_SAMPLE_URL:
-    "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/collect_station_sample"
+  // --- Cloud Function (separate from HIVE's hive_collect_basic_data_sample) ---
+  WHALE_COLLECT_BASIC_DATA_SAMPLE_URL:
+    "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_collect_basic_data_sample"
 };
 
 // Travel time (seconds) for a station heading to `depthM` metres below the ice.

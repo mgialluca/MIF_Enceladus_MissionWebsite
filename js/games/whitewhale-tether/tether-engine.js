@@ -22,7 +22,7 @@ import { TETHER_CONFIG, stationTravelSeconds } from "./config.js";
 const {
   GROUP, OCEAN_DEPTH_M, STATION_COUNT,
   TETHER_DEPLOY_SECONDS, STATION_DEPLOYING_SECONDS, SAMPLE_COLLECT_SECONDS,
-  COLLECT_STATION_SAMPLE_URL
+  WHALE_COLLECT_BASIC_DATA_SAMPLE_URL
 } = TETHER_CONFIG;
 
 function tetherRef() {
@@ -257,7 +257,7 @@ export async function collectSample(stationId) {
 async function triggerStationCollection(station) {
   let rawResponse = "";
   try {
-    const response = await fetch(COLLECT_STATION_SAMPLE_URL, {
+    const response = await fetch(WHALE_COLLECT_BASIC_DATA_SAMPLE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

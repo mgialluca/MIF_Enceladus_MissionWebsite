@@ -85,7 +85,7 @@ def upload_to_drive(folder_id, filename, file_content, mimetype="text/csv"):
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def collect_sample(req: https_fn.Request) -> https_fn.Response:
+def hive_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
     data = req.get_json(silent=True)
     if not data:
         return https_fn.Response("Missing JSON body", status=400)
@@ -115,8 +115,9 @@ def collect_sample(req: https_fn.Request) -> https_fn.Response:
 
 # ======================================================================
 # WhiteWhale tether game — station sample collection.
-# Deliberately SEPARATE from collect_sample above: different file format,
-# different naming, WhiteWhale Drive folder only, its own Firestore counter.
+# Deliberately SEPARATE from hive_collect_basic_data_sample above: different
+# file format, different naming, WhiteWhale Drive folder only, its own
+# Firestore counter.
 # ======================================================================
 
 def generate_placeholder_station_file(station_label, sample_number, depth_m):
@@ -154,7 +155,7 @@ def get_next_station_sample_number(group, station_id):
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def collect_station_sample(req: https_fn.Request) -> https_fn.Response:
+def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
     data = req.get_json(silent=True)
     if not data:
         return https_fn.Response("Missing JSON body", status=400)

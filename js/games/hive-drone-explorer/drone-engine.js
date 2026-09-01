@@ -33,7 +33,7 @@ async function saveDrone(group, droneId, data) {
 // Tracks pending setTimeout handles per drone, so re-scheduling doesn't stack up duplicates.
 const scheduledTimers = {};
 
-const COLLECT_SAMPLE_URL = "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/collect_sample";
+const HIVE_COLLECT_BASIC_DATA_SAMPLE_URL = "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_collect_basic_data_sample";
 
 function scheduleTick(group, droneId, atTimestampMs) {
   const key = `${group}/${droneId}`;
@@ -146,7 +146,7 @@ async function destroyDrone(group, droneId, command, leg, now, collision) {
 }
 
 /**
- * Calls the collect_sample Cloud Function to generate and upload a data
+ * Calls the hive_collect_basic_data_sample Cloud Function to generate and upload a data
  * file for the box the drone just arrived at. Failures are logged but
  * don't block gameplay from proceeding — a missed upload here shouldn't
  * strand a drone. The result (success or failure) is recorded on the
@@ -154,7 +154,7 @@ async function destroyDrone(group, droneId, command, leg, now, collision) {
  */
 async function triggerDataCollection(group, droneId, boxCoordinates) {
   try {
-    const response = await fetch(COLLECT_SAMPLE_URL, {
+    const response = await fetch(HIVE_COLLECT_BASIC_DATA_SAMPLE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

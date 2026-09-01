@@ -4,7 +4,7 @@ Documentation only. Firestore is schemaless; these paths are created the first
 time code writes to them. This file keeps every script touching them consistent.
 
 Game code: `js/games/whitewhale-tether/` + `pages/WhiteWhale/Phase1_DeployTether.html`
-Cloud Functions: `collect_station_sample`, `reset_group` (WhiteWhale branch)
+Cloud Functions: `whale_collect_basic_data_sample`, `reset_group` (WhiteWhale branch)
 
 ## Path: groups/WhiteWhale/tether/state
 
@@ -46,14 +46,14 @@ Status flow per station:
     → (reaches assignedDepthM)    → deploying         (STATION_DEPLOYING_SECONDS)
     → (deploy finishes)           → standby
     → (Collect Sample pressed)    → collecting_data   (SAMPLE_COLLECT_SECONDS)
-    → (collection finishes)       → standby   + triggers collect_station_sample upload
+    → (collection finishes)       → standby   + triggers whale_collect_basic_data_sample upload
 
 ## Path: groups/WhiteWhale/stationSamples/{stationId}
 
 stationId: "station-1" ... "station-4"
 
 Fields:
-- sampleCount: <number>   // atomic counter owned by collect_station_sample;
+- sampleCount: <number>   // atomic counter owned by whale_collect_basic_data_sample;
                           // names files StationN_Sample1.txt, _Sample2.txt, ...
 
 ## Notes / known limitations
@@ -61,6 +61,6 @@ Fields:
 - Timers are client-side (`setTimeout`). Transitions only advance while a tab
   is open; `catchUpTether()` resolves elapsed time on load.
 - Multiple open tabs each run their own timers. Transitions are status-gated so
-  late ticks are harmless no-ops, but the `collect_station_sample` upload at the
+  late ticks are harmless no-ops, but the `whale_collect_basic_data_sample` upload at the
   end of "collecting_data" can fire once per open tab. Acceptable for a single
   shared workshop account.
