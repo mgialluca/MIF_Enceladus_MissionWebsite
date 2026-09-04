@@ -61,9 +61,13 @@ export async function issueCommand(group, droneId, destination) {
   const drone = await getDrone(group, droneId);
   if (!drone) throw new Error(`Drone ${droneId} not found`);
   if (drone.status === "destroyed") return; // no-op, drone is gone
+  if (drone.status === "docked_to_base") {
+    throw new Error(`${droneId} is docked at the base station and cannot accept new commands.`);
+  }
 
   const command = {
     commandId: crypto.randomUUID(),
+    type: "collect",
     destination: clampToBounds({
       x: roundToMeter(destination.x),
       y: roundToMeter(destination.y),
@@ -99,10 +103,20 @@ async function activateFrontCommand(group, droneId) {
   }
 
   const command = { ...queue[0] };
-  const legs = decomposeMove(drone.position, command.destination).map(enrichLegWithHazards);
+  let legs = decomposeMove(drone.position, command.destination).map(enrichLegWithHazards);
+  if (command.type === "return_sample" && MISSION_CONFIG.RETURN_TRIP_SPEED_MULTIPLIER !== 1) {
+    legs = legs.map((leg) => ({
+      ...leg,
+      travelTimeSeconds: leg.travelTimeSeconds * MISSION_CONFIG.RETURN_TRIP_SPEED_MULTIPLIER
+    }));
+  }
 
   if (legs.length === 0) {
     // Destination equals current position — treat as instant arrival.
+    if (command.type === "return_sample") {
+      await saveDrone(group, droneId, { status: "docked_to_base", commandQueue: [] });
+      return;
+    }
     command.legs = [];
     command.state = "collecting";
     command.collectionEndsAt = Date.now() + scaledSeconds(MISSION_CONFIG.COLLECTION_TIME_SECONDS) * 1000;
@@ -141,7 +155,8 @@ async function destroyDrone(group, droneId, command, leg, now, collision) {
     commandQueue: [],
     hazardWarning: null,
     destructionPoint,
-    destruction
+    destruction,
+    sample: null
   });
 }
 
@@ -257,6 +272,14 @@ async function tick(group, droneId) {
         commandQueue: newQueue
       });
       scheduleTick(group, droneId, nextDueTimestamp(command));
+    } else if (command.type === "return_sample") {
+      // Home — dock immediately, no collection dwell or basic-data upload.
+      await saveDrone(group, droneId, {
+        position: newPosition,
+        status: "docked_to_base",
+        hazardWarning: null,
+        commandQueue: []
+      });
     } else {
       command.state = "collecting";
       command.hazardWarning = null;
@@ -308,11 +331,16 @@ export async function cancelActiveCommand(group, droneId) {
   const stoppedPosition = interpolateLegPosition(leg, Date.now());
 
   const remainingQueue = queue.slice(1);
-  await saveDrone(group, droneId, {
+  const patch = {
     position: stoppedPosition,
     hazardWarning: null,
     commandQueue: remainingQueue
-  });
+  };
+  if (command.type === "return_sample") {
+    // Canceling a return trip loses the sample it was carrying.
+    patch.sample = null;
+  }
+  await saveDrone(group, droneId, patch);
   await activateFrontCommand(group, droneId);
 }
 
@@ -352,6 +380,79 @@ export async function editQueuedCommand(group, droneId, commandId, newDestinatio
     return cmd;
   });
   await saveDrone(group, droneId, { commandQueue: newQueue });
+}
+
+/**
+ * Sends a drone that's currently idle back to base (0,0,0) carrying a
+ * SAMPLE_VOLUME_L water sample drawn from wherever it is right now. Uses the
+ * same decomposeMove/hazard pipeline as any other move, scaled by
+ * RETURN_TRIP_SPEED_MULTIPLIER. On arrival the drone becomes "docked_to_base"
+ * immediately — no collection dwell, no basic-data upload.
+ */
+export async function returnSample(group, droneId) {
+  const drone = await getDrone(group, droneId);
+  if (!drone) throw new Error(`Drone ${droneId} not found`);
+  if (drone.status !== "awaiting_command") {
+    throw new Error(`${droneId} must be awaiting command to return a sample.`);
+  }
+  if (drone.sample) {
+    throw new Error(`${droneId} is already carrying a sample.`);
+  }
+
+  const sample = {
+    volumeL: MISSION_CONFIG.SAMPLE_VOLUME_L,
+    originPosition: { ...drone.position },
+    collectedAt: Date.now()
+  };
+
+  const command = {
+    commandId: crypto.randomUUID(),
+    type: "return_sample",
+    destination: { x: 0, y: 0, z: 0 },
+    legs: null,
+    currentLegIndex: 0,
+    collectionEndsAt: null,
+    hazardWarning: null,
+    state: "queued"
+  };
+
+  await saveDrone(group, droneId, { sample, commandQueue: [command] });
+  await activateFrontCommand(group, droneId);
+}
+
+/**
+ * Returns a docked drone to the ocean: clears its sample, resets it to
+ * (0,0,0)/awaiting_command. No-op if the drone isn't actually docked.
+ */
+export async function returnDroneToOcean(group, droneId) {
+  const drone = await getDrone(group, droneId);
+  if (!drone || drone.status !== "docked_to_base") return;
+
+  await saveDrone(group, droneId, {
+    status: "awaiting_command",
+    position: { x: 0, y: 0, z: 0 },
+    sample: null,
+    commandQueue: []
+  });
+}
+
+/** Thin exported wrapper so other engines (base-station-engine.js) can read a drone once. */
+export async function getDroneSnapshot(group, droneId) {
+  return getDrone(group, droneId);
+}
+
+/**
+ * Deducts `consumedVolumeL` from a docked drone's sample after a base-station
+ * analysis run completes. Returns the new remaining volume, or null if the
+ * drone has no sample (e.g. it was already returned).
+ */
+export async function applyDroneSampleUpdate(group, droneId, consumedVolumeL) {
+  const drone = await getDrone(group, droneId);
+  if (!drone || !drone.sample) return null;
+
+  const remaining = Math.max(0, Math.round((drone.sample.volumeL - consumedVolumeL) * 1000) / 1000);
+  await saveDrone(group, droneId, { sample: { ...drone.sample, volumeL: remaining } });
+  return remaining;
 }
 
 /**

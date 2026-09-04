@@ -1,4 +1,5 @@
-<!-- HIVE game page: drone release/movement control panel. Participant-only, HIVE group. -->
+<!-- HIVE game page: drone release/movement control panel, plus the base
+     station's advanced sample-analysis tab. Participant-only, HIVE group. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,6 +32,28 @@
             justify-content: normal;
             overflow-x: auto;
         }
+
+        /* ===== Page-level tabs ===== */
+        .page-tabs {
+            display: flex;
+            gap: 0.5rem;
+            max-width: 1700px;
+            margin: 0 auto;
+            padding: 1.5rem 1.5rem 0;
+        }
+        .page-tab-btn {
+            background: #1c3c56;
+            color: #a8cbe0;
+            border: none;
+            padding: 0.65rem 1.2rem;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: bold;
+        }
+        .page-tab-btn.active { background: #2f9bd6; color: white; }
+        .page-tab-content { display: none; }
+        .page-tab-content.active { display: block; }
 
         .ops-layout {
             display: flex;
@@ -88,6 +111,7 @@
         .status-in_route { background: #1c4a72; color: #7fd8ff; }
         .status-collecting_sample { background: #235c3a; color: #9dffbf; }
         .status-destroyed { background: #5c2323; color: #ff9d9d; }
+        .status-docked_to_base { background: #3a2a5c; color: #d9baff; }
 
         .warning-text {
             color: #ffcf6b;
@@ -108,6 +132,9 @@
             color: #7fa8c4;
         }
 
+        .cell-actions button { display: block; width: 100%; margin-top: 0.3rem; }
+        .cell-actions button:first-child { margin-top: 0; }
+
         .cancel-btn {
             background: #a83232;
             color: white;
@@ -118,6 +145,21 @@
             cursor: pointer;
         }
         .cancel-btn:disabled {
+            background: #3a3a3a;
+            color: #777;
+            cursor: not-allowed;
+        }
+
+        .return-sample-btn {
+            background: #2f9bd6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.72rem;
+            cursor: pointer;
+        }
+        .return-sample-btn:disabled {
             background: #3a3a3a;
             color: #777;
             cursor: not-allowed;
@@ -252,79 +294,210 @@
             margin-top: 0.5rem;
             display: none;
         }
+
+        /* ===== Base station tab ===== */
+        .big-btn {
+            padding: 0.65rem 1.2rem;
+            border: none;
+            border-radius: 5px;
+            background: #2f9bd6;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.92rem;
+        }
+        .big-btn:hover:not(:disabled) { background: #237bab; }
+        .big-btn:disabled { background: #2c4a5e; color: #8fb0c4; cursor: not-allowed; }
+
+        .bs-full-panel { flex: 1 1 100%; }
+        .bs-sub-panel { flex: 1 1 300px; min-width: 260px; }
+        .bs-sub-panel.disabled-panel { opacity: 0.45; pointer-events: none; }
+
+        table.station-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .station-table th {
+            text-align: left; color: #a8cbe0; padding: 0.4rem;
+            border-bottom: 1px solid #1c3c56;
+        }
+        .station-table td { padding: 0.5rem 0.4rem; border-bottom: 1px solid #1c3c56; vertical-align: top; }
+
+        .select-drone-btn {
+            background: #2f9bd6; color: white; border: none; border-radius: 4px;
+            font-size: 0.72rem; padding: 0.25rem 0.55rem; cursor: pointer;
+        }
+        .select-drone-btn.selected { background: #1f5c3a; }
+        .select-drone-btn:disabled { background: #3a3a3a; color: #777; cursor: not-allowed; }
+
+        .return-ocean-btn {
+            background: none; border: 1px solid #2f9bd6; color: #7fd8ff; border-radius: 4px;
+            font-size: 0.72rem; padding: 0.22rem 0.5rem; cursor: pointer;
+        }
+        .return-ocean-btn:disabled { border-color: #555; color: #777; cursor: not-allowed; }
+
+        .bs-sub-panel label { display: block; margin-top: 0.75rem; font-size: 0.85rem; color: #a8cbe0; }
+        .bs-sub-panel select, .bs-sub-panel input {
+            width: 100%; padding: 0.4rem; margin-top: 0.25rem; border-radius: 5px; border: none; box-sizing: border-box;
+        }
+        .bs-max-hint { font-size: 0.72rem; color: #7fa8c4; margin-top: 0.2rem; }
+        .bs-description { font-size: 0.78rem; color: #a8cbe0; margin-top: 0.9rem; }
+
+        .instrument-btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+        .instrument-btn {
+            background: #1c3c56; color: #a8cbe0; border: none; border-radius: 5px;
+            padding: 0.5rem 0.8rem; font-size: 0.82rem; cursor: pointer;
+        }
+        .instrument-btn.active { background: #2f9bd6; color: white; font-weight: bold; }
+        .instrument-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .bs-status-log {
+            list-style: none; margin: 0.5rem 0 0; padding: 0;
+            max-height: 260px; overflow-y: auto; font-size: 0.8rem;
+        }
+        .bs-status-log li { padding: 0.4rem 0.2rem; border-bottom: 1px solid #1c3c56; }
+        .bs-status-log .log-time { color: #7fa8c4; font-size: 0.7rem; margin-right: 0.5rem; }
+
+        .analyze-row { max-width: 1700px; margin: 0 auto; padding: 0 1.5rem 1.5rem; }
+        .analyze-row .big-btn { max-width: 320px; }
     </style>
 </head>
 <body>
 
-    <div class="ops-layout">
-        <div class="panel fleet-panel">
-            <h1>HIVE Drone Fleet</h1>
-            <div class="fleet-scroll">
-                <table class="fleet-table">
-                    <thead>
-                        <tr>
-                            <th>Drone</th>
-                            <th>Status</th>
-                            <th>Position / En Route To</th>
-                            <th>Queue</th>
-                            <th>Warning</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="fleet-table-body">
-                        <!-- rows populated by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <div class="page-tabs">
+        <button class="page-tab-btn active" data-page-tab="movement" id="page-tab-btn-movement">Movement &amp; Basic Data Collection</button>
+        <button class="page-tab-btn" data-page-tab="basestation" id="page-tab-btn-basestation">Base Station Advanced Data Collection</button>
+    </div>
 
-        <div class="panel viz-panel">
-            <h2>Ocean Map</h2>
-            <div class="viz-tabs">
-                <button class="viz-tab-btn active" data-tab="2d" id="tab-btn-2d">2D Map</button>
-                <button class="viz-tab-btn" data-tab="3d" id="tab-btn-3d">3D Cube</button>
-            </div>
-
-            <div id="tab-2d" class="viz-tab-content active">
-                <canvas id="viz-2d-canvas" width="420" height="420"></canvas>
-                <div class="depth-slider-row">
-                    <input type="range" id="depth-slider" min="0" max="70" step="1" value="0">
-                    <span id="depth-label">Layer: 0 km</span>
+    <!-- ===================== Movement & Basic Data Collection tab ===================== -->
+    <div id="page-tab-movement" class="page-tab-content active">
+        <div class="ops-layout">
+            <div class="panel fleet-panel">
+                <h1>HIVE Drone Fleet</h1>
+                <div class="fleet-scroll">
+                    <table class="fleet-table">
+                        <thead>
+                            <tr>
+                                <th>Drone</th>
+                                <th>Status</th>
+                                <th>Position / En Route To</th>
+                                <th>Queue</th>
+                                <th>Warning</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fleet-table-body">
+                            <!-- rows populated by JS -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <div id="tab-3d" class="viz-tab-content">
-                <div id="viz-3d-container"></div>
+            <div class="panel viz-panel">
+                <h2>Ocean Map</h2>
+                <div class="viz-tabs">
+                    <button class="viz-tab-btn active" data-tab="2d" id="tab-btn-2d">2D Map</button>
+                    <button class="viz-tab-btn" data-tab="3d" id="tab-btn-3d">3D Cube</button>
+                </div>
+
+                <div id="tab-2d" class="viz-tab-content active">
+                    <canvas id="viz-2d-canvas" width="420" height="420"></canvas>
+                    <div class="depth-slider-row">
+                        <input type="range" id="depth-slider" min="0" max="70" step="1" value="0">
+                        <span id="depth-label">Layer: 0 km</span>
+                    </div>
+                </div>
+
+                <div id="tab-3d" class="viz-tab-content">
+                    <div id="viz-3d-container"></div>
+                </div>
+
+                <div class="viz-legend">
+                    <span><span class="legend-dot" style="background:#a8cbe0;"></span>Awaiting</span>
+                    <span><span class="legend-dot" style="background:#ffb347;"></span>En route</span>
+                    <span><span class="legend-dot" style="background:#9dffbf;"></span>Collecting</span>
+                    <span><span class="legend-dot" style="background:#c9a0ff;"></span>Docked to Base</span>
+                    <span><span class="legend-dot" style="background:#ff4d4d;"></span>Destroyed</span>
+                </div>
+                <p class="viz-error-msg" id="viz-error-msg"></p>
             </div>
 
-            <div class="viz-legend">
-                <span><span class="legend-dot" style="background:#a8cbe0;"></span>Awaiting</span>
-                <span><span class="legend-dot" style="background:#ffb347;"></span>En route</span>
-                <span><span class="legend-dot" style="background:#9dffbf;"></span>Collecting</span>
-                <span><span class="legend-dot" style="background:#ff4d4d;"></span>Destroyed</span>
+            <div class="panel command-panel">
+                <h2>Issue Command</h2>
+
+                <label for="drone-select">Select Drone</label>
+                <select id="drone-select"></select>
+
+                <label for="dest-x">X (m)</label>
+                <input type="number" id="dest-x" value="0">
+                <label for="dest-y">Y (m)</label>
+                <input type="number" id="dest-y" value="0">
+                <label for="dest-z">Z (m)</label>
+                <input type="number" id="dest-z" value="0">
+
+                <button id="queue-command-btn">Queue Command</button>
+                <p id="command-feedback" class="feedback-msg"></p>
+
+                <h2>Queued Commands</h2>
+                <p class="queue-count" id="queue-summary">Select a drone to view its queue.</p>
+                <ul class="queue-list" id="queue-list"></ul>
             </div>
-            <p class="viz-error-msg" id="viz-error-msg"></p>
+        </div>
+    </div>
+
+    <!-- ===================== Base Station Advanced Data Collection tab ===================== -->
+    <div id="page-tab-basestation" class="page-tab-content">
+        <div class="ops-layout">
+            <div class="panel bs-full-panel">
+                <h2>Drones &amp; Samples Available for Analysis</h2>
+                <div class="fleet-scroll">
+                    <table class="station-table">
+                        <thead>
+                            <tr>
+                                <th>Drone</th>
+                                <th>Volume (L)</th>
+                                <th>Origin (x, y, z)</th>
+                                <th></th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="bs-drones-body"><!-- rows populated by JS --></tbody>
+                    </table>
+                </div>
+                <p class="queue-count" id="bs-empty-msg">No drones currently docked at the base station.</p>
+            </div>
+
+            <div class="panel bs-sub-panel" id="bs-filtration-panel">
+                <h2>Filtration Setup</h2>
+                <label for="bs-filtration-select">Filtration</label>
+                <select id="bs-filtration-select">
+                    <option value="">— choose —</option>
+                </select>
+
+                <label for="bs-volume-input">Sample volume to analyze (L)</label>
+                <input type="number" id="bs-volume-input" min="0" step="any">
+                <p class="bs-max-hint" id="bs-volume-max-hint"></p>
+
+                <p class="bs-description">Filtering a sample will isolate particles larger than or equal to the selected filter for downstream analysis.</p>
+            </div>
+
+            <div class="panel bs-sub-panel" id="bs-instrument-panel">
+                <h2>Instrument to Use</h2>
+                <div class="instrument-btn-row" id="bs-instrument-buttons"></div>
+                <div id="bs-reagent-row" style="display:none;">
+                    <label for="bs-reagent-select">Reagent</label>
+                    <select id="bs-reagent-select">
+                        <option value="">— choose —</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="panel bs-sub-panel">
+                <h2>Status of Base Station</h2>
+                <ul id="bs-status-log" class="bs-status-log"></ul>
+            </div>
         </div>
 
-        <div class="panel command-panel">
-            <h2>Issue Command</h2>
-
-            <label for="drone-select">Select Drone</label>
-            <select id="drone-select"></select>
-
-            <label for="dest-x">X (m)</label>
-            <input type="number" id="dest-x" value="0">
-            <label for="dest-y">Y (m)</label>
-            <input type="number" id="dest-y" value="0">
-            <label for="dest-z">Z (m)</label>
-            <input type="number" id="dest-z" value="0">
-
-            <button id="queue-command-btn">Queue Command</button>
-            <p id="command-feedback" class="feedback-msg"></p>
-
-            <h2>Queued Commands</h2>
-            <p class="queue-count" id="queue-summary">Select a drone to view its queue.</p>
-            <ul class="queue-list" id="queue-list"></ul>
+        <div class="analyze-row">
+            <button id="bs-analyze-btn" class="big-btn" disabled>Analyze Sample</button>
+            <p id="bs-analyze-feedback" class="feedback-msg"></p>
         </div>
     </div>
 
@@ -333,19 +506,50 @@
       const user = requireAuth("participant", "HIVE", "../../index.html");
     </script>
 
-    <!-- ORIGINAL, CONFIRMED-WORKING SCRIPT — UNCHANGED. -->
+    <!-- Single shared module: movement tab, ocean map viz, and the base
+         station tab all read from ONE set of 50 drone listeners. -->
     <script type="module">
       import { MISSION_CONFIG } from "../../js/games/hive-drone-explorer/config.js";
       import {
-        issueCommand, cancelActiveCommand, removeQueuedCommand, catchUpDrone, listenToDrone
+        issueCommand, cancelActiveCommand, removeQueuedCommand, catchUpDrone, listenToDrone,
+        returnSample
       } from "../../js/games/hive-drone-explorer/drone-engine.js";
+      import {
+        selectDrone, setFiltration, setVolumeToAnalyze, setInstrument, setReagent,
+        analyzeSample, returnToOcean, catchUpBaseStation, listenToBaseStation
+      } from "../../js/games/hive-drone-explorer/base-station-engine.js";
 
       const GROUP = "HIVE";
       const DRONE_IDS = Array.from({ length: MISSION_CONFIG.DRONE_COUNT }, (_, i) =>
         `${GROUP}-${String(i + 1).padStart(2, "0")}`
       );
 
+      // Shared across the movement tab, the viz, and the base station tab.
       const droneState = {};
+      let baseStationState = null;
+
+      function formatPosition(pos) {
+        if (!pos) return "—";
+        return `(${pos.x}, ${pos.y}, ${pos.z})`;
+      }
+
+      // ===================== Page-level tabs =====================
+      const pageTabBtnMovement = document.getElementById("page-tab-btn-movement");
+      const pageTabBtnBaseStation = document.getElementById("page-tab-btn-basestation");
+      const pageTabMovement = document.getElementById("page-tab-movement");
+      const pageTabBaseStation = document.getElementById("page-tab-basestation");
+
+      function showPageTab(tab) {
+        const isMovement = tab === "movement";
+        pageTabBtnMovement.classList.toggle("active", isMovement);
+        pageTabBtnBaseStation.classList.toggle("active", !isMovement);
+        pageTabMovement.classList.toggle("active", isMovement);
+        pageTabBaseStation.classList.toggle("active", !isMovement);
+      }
+      pageTabBtnMovement.addEventListener("click", () => showPageTab("movement"));
+      pageTabBtnBaseStation.addEventListener("click", () => showPageTab("basestation"));
+
+      // ===================== Movement tab: fleet table =====================
       let selectedDroneId = DRONE_IDS[0];
 
       const selectEl = document.getElementById("drone-select");
@@ -363,15 +567,14 @@
 
       const tbody = document.getElementById("fleet-table-body");
 
-      function formatPosition(pos) {
-        if (!pos) return "—";
-        return `(${pos.x}, ${pos.y}, ${pos.z})`;
-      }
-
       function positionOrEnRouteText(drone) {
         const queue = drone.commandQueue || [];
+        if (drone.status === "docked_to_base") {
+          return "At Base Station";
+        }
         if (drone.status === "in_route" && queue.length > 0) {
-          return `→ ${formatPosition(queue[0].destination)}`;
+          const destText = queue[0].type === "return_sample" ? "Base Station (0, 0, 0)" : formatPosition(queue[0].destination);
+          return `→ ${destText}`;
         }
         if (drone.status === "collecting_sample" && queue.length > 0) {
           return `Collecting at ${formatPosition(queue[0].destination)}`;
@@ -402,7 +605,10 @@
           <td class="cell-position position-text"></td>
           <td class="cell-queue queue-count"></td>
           <td class="cell-warning"></td>
-          <td><button class="cancel-btn" data-drone="${droneId}">Cancel</button></td>
+          <td class="cell-actions">
+            <button class="cancel-btn" data-drone="${droneId}">Cancel</button>
+            <button class="return-sample-btn" data-drone="${droneId}">Return Sample</button>
+          </td>
         `;
         return tr;
       }
@@ -410,9 +616,15 @@
       DRONE_IDS.forEach((id) => tbody.appendChild(buildRow(id)));
 
       tbody.addEventListener("click", (e) => {
-        const btn = e.target.closest(".cancel-btn");
-        if (!btn) return;
-        cancelActiveCommand(GROUP, btn.dataset.drone);
+        const cancelBtn = e.target.closest(".cancel-btn");
+        if (cancelBtn) {
+          cancelActiveCommand(GROUP, cancelBtn.dataset.drone);
+          return;
+        }
+        const returnBtn = e.target.closest(".return-sample-btn");
+        if (returnBtn) {
+          returnSample(GROUP, returnBtn.dataset.drone).catch(console.error);
+        }
       });
 
       function renderRow(droneId, drone) {
@@ -420,7 +632,8 @@
         if (!row || !drone) return;
 
         const statusCell = row.querySelector(".cell-status");
-        statusCell.innerHTML = `<span class="status-badge status-${drone.status}">${drone.status.replace("_", " ")}</span>`;
+        const statusLabel = drone.status === "docked_to_base" ? "docked to base" : drone.status.replace("_", " ");
+        statusCell.innerHTML = `<span class="status-badge status-${drone.status}">${statusLabel}</span>`;
 
         row.querySelector(".cell-position").textContent = positionOrEnRouteText(drone);
 
@@ -431,6 +644,9 @@
 
         const cancelBtn = row.querySelector(".cancel-btn");
         cancelBtn.disabled = drone.status !== "in_route";
+
+        const returnSampleBtn = row.querySelector(".return-sample-btn");
+        returnSampleBtn.disabled = !(drone.status === "awaiting_command" && !drone.sample);
       }
 
       const feedbackEl = document.getElementById("command-feedback");
@@ -502,35 +718,187 @@
         });
       }
 
-      DRONE_IDS.forEach((droneId) => {
-        catchUpDrone(GROUP, droneId);
-        listenToDrone(GROUP, droneId, (drone) => {
-          droneState[droneId] = drone;
-          if (drone) renderRow(droneId, drone);
-          if (droneId === selectedDroneId) renderQueuePanel();
-        });
+      // ===================== Base station tab =====================
+      const FILTRATION_LABELS = {};
+      MISSION_CONFIG.FILTRATION_OPTIONS.forEach((f) => { FILTRATION_LABELS[f.id] = f.label; });
+
+      const bsFiltrationSelect = document.getElementById("bs-filtration-select");
+      MISSION_CONFIG.FILTRATION_OPTIONS.forEach((f) => {
+        const opt = document.createElement("option");
+        opt.value = f.id;
+        opt.textContent = f.label;
+        bsFiltrationSelect.appendChild(opt);
       });
-    </script>
+      bsFiltrationSelect.addEventListener("change", () => {
+        setFiltration(bsFiltrationSelect.value).catch(console.error);
+      });
 
-    <!-- VISUALIZATION SCRIPT — fully separate module, own imports, own
-         Firestore subscriptions. Isolated from the script above. -->
-    <script type="module">
-      import { MISSION_CONFIG } from "../../js/games/hive-drone-explorer/config.js";
-      import { catchUpDrone, listenToDrone } from "../../js/games/hive-drone-explorer/drone-engine.js";
+      const bsVolumeInput = document.getElementById("bs-volume-input");
+      const bsVolumeMaxHint = document.getElementById("bs-volume-max-hint");
+      bsVolumeInput.addEventListener("change", () => {
+        const v = bsVolumeInput.value === "" ? null : Number(bsVolumeInput.value);
+        setVolumeToAnalyze(v).catch(console.error);
+      });
 
+      const bsInstrumentButtonsEl = document.getElementById("bs-instrument-buttons");
+      MISSION_CONFIG.INSTRUMENTS.forEach((instrument) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "instrument-btn";
+        btn.dataset.instrument = instrument;
+        btn.textContent = instrument;
+        btn.addEventListener("click", () => {
+          setInstrument(instrument).catch(console.error);
+        });
+        bsInstrumentButtonsEl.appendChild(btn);
+      });
+
+      const bsReagentRow = document.getElementById("bs-reagent-row");
+      const bsReagentSelect = document.getElementById("bs-reagent-select");
+      MISSION_CONFIG.REAGENTS.forEach((r) => {
+        const opt = document.createElement("option");
+        opt.value = r;
+        opt.textContent = r;
+        bsReagentSelect.appendChild(opt);
+      });
+      bsReagentSelect.addEventListener("change", () => {
+        setReagent(bsReagentSelect.value).catch(console.error);
+      });
+
+      const bsDronesBody = document.getElementById("bs-drones-body");
+      const bsEmptyMsg = document.getElementById("bs-empty-msg");
+      const bsFiltrationPanel = document.getElementById("bs-filtration-panel");
+      const bsInstrumentPanel = document.getElementById("bs-instrument-panel");
+      const bsAnalyzeBtn = document.getElementById("bs-analyze-btn");
+      const bsAnalyzeFeedback = document.getElementById("bs-analyze-feedback");
+      const bsStatusLogEl = document.getElementById("bs-status-log");
+
+      function bsShowFeedback(message, isError) {
+        bsAnalyzeFeedback.textContent = message;
+        bsAnalyzeFeedback.className = "feedback-msg" + (isError ? " error" : " success");
+      }
+
+      bsDronesBody.addEventListener("click", (e) => {
+        const selectBtn = e.target.closest(".select-drone-btn");
+        if (selectBtn) {
+          selectDrone(selectBtn.dataset.drone).catch((err) => bsShowFeedback(err.message, true));
+          return;
+        }
+        const returnBtn = e.target.closest(".return-ocean-btn");
+        if (returnBtn) {
+          returnToOcean(returnBtn.dataset.drone).catch((err) => bsShowFeedback(err.message, true));
+        }
+      });
+
+      bsAnalyzeBtn.addEventListener("click", async () => {
+        bsAnalyzeFeedback.textContent = "";
+        bsAnalyzeFeedback.className = "feedback-msg";
+        try {
+          await analyzeSample();
+        } catch (err) {
+          bsShowFeedback(err.message, true);
+        }
+      });
+
+      function formatLogTime(ms) {
+        if (!ms) return "";
+        return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      }
+
+      function renderBaseStation() {
+        const bs = baseStationState;
+        const analyzing = bs?.stationStatus === "analyzing";
+        const dockedIds = DRONE_IDS.filter((id) => droneState[id]?.status === "docked_to_base");
+
+        // --- Drones & Samples table ---
+        bsDronesBody.innerHTML = "";
+        bsEmptyMsg.style.display = dockedIds.length === 0 ? "block" : "none";
+        dockedIds.forEach((id) => {
+          const drone = droneState[id];
+          const sample = drone.sample || {};
+          const isSelected = bs?.selectedDroneId === id;
+          const isBeingAnalyzed = analyzing && bs.currentRun?.droneId === id;
+
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${id}</td>
+            <td>${sample.volumeL != null ? sample.volumeL : "—"} L</td>
+            <td class="position-text">${formatPosition(sample.originPosition)}</td>
+            <td><button class="select-drone-btn${isSelected ? " selected" : ""}" data-drone="${id}" ${analyzing ? "disabled" : ""}>${isSelected ? "Selected" : "Select"}</button></td>
+            <td><button class="return-ocean-btn" data-drone="${id}" ${isBeingAnalyzed ? "disabled" : ""}>Return to Ocean</button></td>
+          `;
+          bsDronesBody.appendChild(tr);
+        });
+
+        // --- Selection validity ---
+        const selectedDrone = bs?.selectedDroneId ? droneState[bs.selectedDroneId] : null;
+        const hasValidSelection = !!(selectedDrone && selectedDrone.status === "docked_to_base" && selectedDrone.sample);
+
+        const panelsLocked = !hasValidSelection || analyzing;
+        bsFiltrationPanel.classList.toggle("disabled-panel", panelsLocked);
+        bsInstrumentPanel.classList.toggle("disabled-panel", panelsLocked);
+        bsFiltrationSelect.disabled = panelsLocked;
+        bsVolumeInput.disabled = panelsLocked;
+
+        // --- Filtration / volume ---
+        bsFiltrationSelect.value = bs?.filtration || "";
+        if (document.activeElement !== bsVolumeInput) {
+          bsVolumeInput.value = bs?.volumeToAnalyzeL ?? "";
+        }
+        if (hasValidSelection) {
+          bsVolumeInput.max = selectedDrone.sample.volumeL;
+          bsVolumeMaxHint.textContent = `Max: ${selectedDrone.sample.volumeL} L remaining in ${bs.selectedDroneId}'s sample.`;
+        } else {
+          bsVolumeInput.removeAttribute("max");
+          bsVolumeMaxHint.textContent = "";
+        }
+
+        // --- Instrument buttons ---
+        Array.from(bsInstrumentButtonsEl.children).forEach((btn) => {
+          btn.classList.toggle("active", bs?.instrument === btn.dataset.instrument);
+          btn.disabled = panelsLocked;
+        });
+        const showReagent = bs?.instrument === "Incubation";
+        bsReagentRow.style.display = showReagent ? "block" : "none";
+        if (showReagent) {
+          bsReagentSelect.value = bs?.reagent || "";
+          bsReagentSelect.disabled = panelsLocked;
+        }
+
+        // --- Analyze button gating ---
+        const volumeL = Number(bs?.volumeToAnalyzeL);
+        const volumeOk = hasValidSelection && volumeL > 0 && volumeL <= selectedDrone.sample.volumeL + 0.001;
+        const reagentOk = bs?.instrument !== "Incubation" || !!bs?.reagent;
+        const canAnalyze = hasValidSelection && !!bs?.filtration && volumeOk && !!bs?.instrument && reagentOk && !analyzing;
+        bsAnalyzeBtn.disabled = !canAnalyze;
+
+        // --- Status log: always visible, never greyed out ---
+        bsStatusLogEl.innerHTML = "";
+        const entries = [];
+        if (!analyzing) entries.push({ message: "Stand by", at: null });
+        (bs?.statusLog || []).forEach((e) => entries.push(e));
+
+        entries.slice(0, 20).forEach((entry) => {
+          const li = document.createElement("li");
+          li.innerHTML = `<span class="log-time">${formatLogTime(entry.at)}</span>${entry.message}`;
+          bsStatusLogEl.appendChild(li);
+        });
+      }
+
+      listenToBaseStation((data) => {
+        baseStationState = data;
+        renderBaseStation();
+      });
+      catchUpBaseStation().catch(console.error);
+      renderBaseStation();
+
+      // ===================== Visualization (2D + 3D) =====================
       const errorMsgEl = document.getElementById("viz-error-msg");
       function showVizError(message) {
         errorMsgEl.textContent = message;
         errorMsgEl.style.display = "block";
         console.error("[visualization]", message);
       }
-
-      const GROUP = "HIVE";
-      const DRONE_IDS = Array.from({ length: MISSION_CONFIG.DRONE_COUNT }, (_, i) =>
-        `${GROUP}-${String(i + 1).padStart(2, "0")}`
-      );
-
-      const vizDroneState = {};
 
       const GRID_X_KM = MISSION_CONFIG.GRID_X_KM;
       const GRID_Y_KM = MISSION_CONFIG.GRID_Y_KM;
@@ -544,6 +912,7 @@
         awaiting_command: "#a8cbe0",
         in_route: "#ffb347",
         collecting_sample: "#9dffbf",
+        docked_to_base: "#c9a0ff",
         destroyed: "#ff4d4d"
       };
 
@@ -556,9 +925,16 @@
         return Math.round(zMeters / 1000);
       }
 
+      // Multiple drones can now sit at the exact same point (docked at the
+      // base station, 0,0,0) — fan them out a little so dots don't stack.
+      function fanOffset(index, step) {
+        const perRow = 5;
+        const row = Math.floor(index / perRow);
+        const col = index % perRow;
+        return { dx: (col - (perRow - 1) / 2) * step, dy: row * step };
+      }
+
       // ================= 2D top-down + depth slider, with grid/axes =================
-      // Coordinates are centered at (0,0): x and y both range from
-      // -GRID_X_KM/2..+GRID_X_KM/2 (km), matching the vent/hazard geometry.
       const canvas2d = document.getElementById("viz-2d-canvas");
       const ctx2d = canvas2d.getContext("2d");
       const depthSlider = document.getElementById("depth-slider");
@@ -569,7 +945,6 @@
       const plotW = canvas2d.width - PAD_LEFT - PAD_RIGHT;
       const plotH = canvas2d.height - PAD_TOP - PAD_BOTTOM;
 
-      // North-up convention: Y=+max at the top of the plot, Y=-max at the bottom.
       function plotX(posXMeters) {
         return PAD_LEFT + ((posXMeters + GRID_X_M / 2) / GRID_X_M) * plotW;
       }
@@ -636,14 +1011,21 @@
         ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
         drawAxesAndGrid();
 
-        Object.entries(vizDroneState).forEach(([droneId, drone]) => {
+        const dockedIds = DRONE_IDS.filter((id) => droneState[id]?.status === "docked_to_base");
+
+        Object.entries(droneState).forEach(([droneId, drone]) => {
           if (!drone) return;
           const pos = effectivePosition(drone);
           if (!pos) return;
           if (nearestKmLayer(pos.z) !== layer) return;
 
-          const px = plotX(pos.x);
-          const py = plotY(pos.y);
+          let px = plotX(pos.x);
+          let py = plotY(pos.y);
+          if (drone.status === "docked_to_base") {
+            const { dx, dy } = fanOffset(dockedIds.indexOf(droneId), 7);
+            px += dx;
+            py += dy;
+          }
 
           ctx2d.beginPath();
           ctx2d.arc(px, py, drone.status === "destroyed" ? 8 : 7, 0, Math.PI * 2);
@@ -655,7 +1037,7 @@
       depthSlider.addEventListener("input", draw2D);
       draw2D();
 
-      // ================= Tabs =================
+      // ================= Ocean Map tabs (2D / 3D) =================
       const tabBtn2d = document.getElementById("tab-btn-2d");
       const tabBtn3d = document.getElementById("tab-btn-3d");
       const tabContent2d = document.getElementById("tab-2d");
@@ -664,7 +1046,7 @@
       let active3D = false;
       let animationFrameId = null;
 
-      function showTab(tab) {
+      function showVizTab(tab) {
         const is2d = tab === "2d";
         tabBtn2d.classList.toggle("active", is2d);
         tabBtn3d.classList.toggle("active", !is2d);
@@ -684,8 +1066,8 @@
         }
       }
 
-      tabBtn2d.addEventListener("click", () => showTab("2d"));
-      tabBtn3d.addEventListener("click", () => showTab("3d"));
+      tabBtn2d.addEventListener("click", () => showVizTab("2d"));
+      tabBtn3d.addEventListener("click", () => showVizTab("3d"));
 
       // ================= 3D cube (three.js via import map) =================
       let THREE = null;
@@ -696,7 +1078,6 @@
       let scene, camera, renderer, controls;
       const droneMeshes = {};
 
-      // Coordinates are already centered at (0,0) in x/y — no offset needed.
       function sceneX(posXMeters) { return posXMeters / 1000; }
       function sceneZ(posYMeters) { return posYMeters / 1000; }
       function sceneY(posZMeters) { return -(posZMeters / 1000); }
@@ -735,13 +1116,13 @@
         controls = new OrbitControls(camera, renderer.domElement);
         controls.target.set(0, -DISPLAY_Z_KM / 2, 0);
         controls.enablePan = true;
-        controls.screenSpacePanning = true; // pan moves camera in screen-space up/down/left/right
+        controls.screenSpacePanning = true;
         controls.panSpeed = 1.2;
         controls.minDistance = 2;
         controls.maxDistance = 250;
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
-        controls.zoomToCursor = true; // zoom in/out toward wherever the cursor is, not just the center
+        controls.zoomToCursor = true;
         controls.update();
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -749,18 +1130,13 @@
         pointLight.position.set(20, 20, 20);
         scene.add(pointLight);
 
-        // Wireframe box representing the mission volume (false depth framing).
         const boxGeom = new THREE.BoxGeometry(GRID_X_KM, DISPLAY_Z_KM, GRID_Y_KM);
         const edges = new THREE.EdgesGeometry(boxGeom);
         const boxLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x2f9bd6 }));
         boxLines.position.set(0, -DISPLAY_Z_KM / 2, 0);
         scene.add(boxLines);
 
-        // ===== Grid throughout the volume, not just top/bottom =====
-        // Horizontal 1km-square reference planes at several depths, evenly
-        // spaced through the full height, so there's always a nearby plane
-        // to judge scale against no matter how deep you're looking.
-        const NUM_HORIZONTAL_PLANES = 8; // e.g. every 10km across a 70km depth
+        const NUM_HORIZONTAL_PLANES = 8;
         for (let i = 0; i <= NUM_HORIZONTAL_PLANES; i++) {
           const depthFraction = i / NUM_HORIZONTAL_PLANES;
           const planeY = -depthFraction * DISPLAY_Z_KM;
@@ -771,9 +1147,6 @@
           scene.add(grid);
         }
 
-        // Vertical lattice lines connecting every 1km (x,y) grid intersection
-        // from the surface straight down to the floor — makes the volume
-        // read as a true 3D grid rather than a stack of flat squares.
         const latticePoints = [];
         for (let xi = -GRID_X_KM / 2; xi <= GRID_X_KM / 2; xi++) {
           for (let yi = -GRID_Y_KM / 2; yi <= GRID_Y_KM / 2; yi++) {
@@ -812,13 +1185,21 @@
 
       function draw3D() {
         if (!scene) return;
-        Object.entries(vizDroneState).forEach(([droneId, drone]) => {
+        const dockedIds = DRONE_IDS.filter((id) => droneState[id]?.status === "docked_to_base");
+
+        Object.entries(droneState).forEach(([droneId, drone]) => {
           if (!drone) return;
           const pos = effectivePosition(drone);
           if (!pos) return;
 
           const mesh = getOrCreateMesh(droneId);
-          mesh.position.set(sceneX(pos.x), sceneY(pos.z), sceneZ(pos.y));
+          let sx = sceneX(pos.x), sy = sceneY(pos.z), sz = sceneZ(pos.y);
+          if (drone.status === "docked_to_base") {
+            const { dx, dy } = fanOffset(dockedIds.indexOf(droneId), 0.6);
+            sx += dx;
+            sz += dy;
+          }
+          mesh.position.set(sx, sy, sz);
           mesh.material.color.set(STATUS_COLORS[drone.status] || "#ffffff");
           mesh.scale.setScalar(drone.status === "destroyed" ? 1.6 : 1);
         });
@@ -840,10 +1221,14 @@
         draw3D();
       }
 
+      // ===================== Shared drone listeners (movement + viz + base station) =====================
       DRONE_IDS.forEach((droneId) => {
         catchUpDrone(GROUP, droneId);
         listenToDrone(GROUP, droneId, (drone) => {
-          vizDroneState[droneId] = drone;
+          droneState[droneId] = drone;
+          if (drone) renderRow(droneId, drone);
+          if (droneId === selectedDroneId) renderQueuePanel();
+          renderBaseStation();
           if (active3D) draw3D(); else draw2D();
         });
       });

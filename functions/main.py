@@ -114,6 +114,134 @@ def hive_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
 
 
 # ======================================================================
+# HIVE base station — advanced sample analysis, one Cloud Function per
+# instrument. All six are placeholders for now: they just echo the inputs
+# they received into the uploaded file (and the JSON response) so the wiring
+# can be verified before the real per-instrument science model is written.
+# They share this helper; each stays its own deployable function since the
+# real implementations will eventually differ per instrument.
+# ======================================================================
+
+def _analysis_sample_number(drone_id):
+    """Firestore atomic counter, one per drone, shared across all instruments —
+    so HIVE-07's analyses are always HIVE-07_Analysis1, _Analysis2, ..."""
+    db = firestore.client()
+    doc_ref = (
+        db.collection("groups").document("HIVE")
+        .collection("analysisSamples").document(drone_id)
+    )
+
+    @firestore.transactional
+    def update_in_transaction(transaction):
+        snapshot = doc_ref.get(transaction=transaction)
+        current = snapshot.get("sampleCount") if snapshot.exists else 0
+        new_count = current + 1
+        transaction.set(doc_ref, {"sampleCount": new_count}, merge=True)
+        return new_count
+
+    transaction = db.transaction()
+    return update_in_transaction(transaction)
+
+
+def _generate_analysis_file(instrument, drone_id, volume_l, filtration, origin, reagent=None):
+    """Placeholder data generator shared by all 6 instrument functions. Just
+    echoes the received inputs — replace with the real per-instrument science
+    model later."""
+    lines = [
+        f"Instrument: {instrument}",
+        f"Drone: {drone_id}",
+        f"Sample volume analyzed (L): {volume_l}",
+        f"Filtration: {filtration}",
+        f"Origin position (m): x={origin.get('x')}, y={origin.get('y')}, z={origin.get('z')}",
+    ]
+    if reagent is not None:
+        lines.append(f"Reagent: {reagent}")
+    lines.append(f"Analyzed (UTC): {datetime.now(timezone.utc).isoformat()}")
+    return "\n".join(lines) + "\n"
+
+
+def _handle_analysis_request(req, instrument, requires_reagent=False):
+    data = req.get_json(silent=True)
+    if not data:
+        return https_fn.Response("Missing JSON body", status=400)
+
+    group = data.get("group", "HIVE")
+    if group != "HIVE":
+        return https_fn.Response(f"Unknown group for base station analysis: {group}", status=400)
+
+    drone_id = data.get("droneId")
+    volume_l = data.get("volumeL")
+    filtration = data.get("filtration")
+    origin = data.get("originPosition") or {}
+    reagent = data.get("reagent")
+
+    if not drone_id:
+        return https_fn.Response("Missing droneId", status=400)
+    if volume_l is None:
+        return https_fn.Response("Missing volumeL", status=400)
+    if requires_reagent and not reagent:
+        return https_fn.Response("Missing reagent for incubation", status=400)
+
+    sample_number = _analysis_sample_number(drone_id)
+    instrument_stem = instrument.replace("-", "").replace(" ", "")
+    filename = f"{drone_id}_Analysis{sample_number}_{instrument_stem}.txt"
+
+    content = _generate_analysis_file(instrument, drone_id, volume_l, filtration, origin, reagent)
+    file_id = upload_to_drive(
+        GROUP_DRIVE_FOLDERS["HIVE"], filename, content, mimetype="text/plain"
+    )
+
+    return https_fn.Response(
+        json.dumps({
+            "status": "ok",
+            "filename": filename,
+            "driveFileId": file_id,
+            "sampleNumber": sample_number,
+            "receivedInputs": {
+                "instrument": instrument,
+                "droneId": drone_id,
+                "volumeL": volume_l,
+                "filtration": filtration,
+                "originPosition": origin,
+                "reagent": reagent,
+            },
+        }),
+        status=200,
+        content_type="application/json",
+    )
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_celif(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "CE-LIF")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_cec4d(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "CE-C4D")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_gcms(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "GCMS")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_fc(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "FC")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_microscope(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "Microscope")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_incubation(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "Incubation", requires_reagent=True)
+
+
+# ======================================================================
 # WhiteWhale tether game — station sample collection.
 # Deliberately SEPARATE from hive_collect_basic_data_sample above: different
 # file format, different naming, WhiteWhale Drive folder only, its own
@@ -212,9 +340,27 @@ def delete_collection(collection_ref, batch_size=100):
         delete_collection(collection_ref, batch_size)
 
 
+def _initial_base_station_state():
+    """Must match initialBaseStationState() in
+    js/games/hive-drone-explorer/base-station-engine.js."""
+    return {
+        "selectedDroneId": None,
+        "filtration": None,
+        "volumeToAnalyzeL": None,
+        "instrument": None,
+        "reagent": None,
+        "stationStatus": "standby",
+        "currentRun": None,
+        "statusLog": [],
+        "lastUpdated": firestore.SERVER_TIMESTAMP,
+    }
+
+
 def _reset_hive(group_ref, group):
-    """HIVE drone-explorer reset: wipe box-visit counters and every drone."""
+    """HIVE drone-explorer reset: wipe box-visit + analysis-sample counters,
+    every drone, and the base station."""
     delete_collection(group_ref.collection("boxVisits"))
+    delete_collection(group_ref.collection("analysisSamples"))
 
     drones_ref = group_ref.collection("drones")
     for i in range(1, DRONE_COUNT + 1):
@@ -226,8 +372,12 @@ def _reset_hive(group_ref, group):
             "hazardWarning": None,
             "destructionPoint": None,
             "destruction": None,
+            "sample": None,
             "lastUpdated": firestore.SERVER_TIMESTAMP
         })
+
+    group_ref.collection("baseStation").document("state").set(_initial_base_station_state())
+
     return {"dronesReset": DRONE_COUNT}
 
 
@@ -288,7 +438,7 @@ def reset_group(req: https_fn.Request) -> https_fn.Response:
         result = _reset_hive(group_ref, group)
 
     return https_fn.Response(
-        {"status": "ok", "group": group, **result},
+        json.dumps({"status": "ok", "group": group, **result}),
         status=200,
         content_type="application/json"
     )
