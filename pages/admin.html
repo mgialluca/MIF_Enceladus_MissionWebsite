@@ -5,6 +5,23 @@
     <meta charset="UTF-8">
     <title>Mission Control - Admin</title>
     <link rel="stylesheet" href="../css/style.css">
+    <style>
+        /* Override the shared login-page body layout — that stylesheet
+           centers a fixed-height box, which clips the top once this page's
+           content (unlock buttons, reset controls, cytometer panel) grows
+           taller than the viewport. Same fix as the two game pages. */
+        body {
+            display: block;
+            height: auto;
+            min-height: 100vh;
+            align-items: normal;
+            justify-content: normal;
+            overflow-x: auto;
+        }
+        .login-container {
+            margin: 2rem auto;
+        }
+    </style>
 </head>
 <body>
     <div class="login-container">
