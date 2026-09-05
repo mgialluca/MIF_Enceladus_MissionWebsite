@@ -282,6 +282,13 @@ def get_next_station_sample_number(group, station_id):
     return update_in_transaction(transaction)
 
 
+def _whale_station_stem(station_label, station_id):
+    """"Station 3" -> "Station3"; falls back to the raw id if no digits present.
+    Shared by every WhiteWhale file-naming Cloud Function."""
+    digits = "".join(ch for ch in str(station_label) if ch.isdigit())
+    return f"Station{digits}" if digits else str(station_id)
+
+
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
 def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
     data = req.get_json(silent=True)
@@ -299,11 +306,7 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response("Missing stationId", status=400)
 
     sample_number = get_next_station_sample_number(group, station_id)
-
-    # "Station 3" -> "Station3"; fall back to the raw id if no digits present.
-    digits = "".join(ch for ch in str(station_label) if ch.isdigit())
-    name_stem = f"Station{digits}" if digits else str(station_id)
-    filename = f"{name_stem}_Sample{sample_number}.txt"
+    filename = f"{_whale_station_stem(station_label, station_id)}_Sample{sample_number}.txt"
 
     content = generate_placeholder_station_file(station_label, sample_number, depth_m)
     file_id = upload_to_drive(
@@ -320,6 +323,186 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
         status=200,
         content_type="application/json",
     )
+
+
+# ======================================================================
+# WhiteWhale advanced data collection — filtration + 5 instrument functions.
+# Filtration is its own Cloud Function/counter (separate from basic
+# collection above). Each instrument analysis is its own deployable function,
+# sharing one request handler, mirroring HIVE's base-station setup.
+# ======================================================================
+
+def _generate_whale_filtration_file(station_id, volume_l, depth_m, filtration_number):
+    """Placeholder data generator for a WhiteWhale filtration run. Replace
+    later with the real science model."""
+    lines = [
+        f"Station: {station_id}",
+        f"Filtration number: {filtration_number}",
+        f"Volume filtered (L): {volume_l}",
+        f"Station depth (m): {depth_m}",
+        f"Filtered (UTC): {datetime.now(timezone.utc).isoformat()}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _next_whale_filtration_number(station_id):
+    """Firestore atomic counter, one per station, shared across all
+    filtration runs — used both in the filtration filename and passed along
+    to tag every downstream size-bin analysis for that batch."""
+    db = firestore.client()
+    doc_ref = (
+        db.collection("groups").document("WhiteWhale")
+        .collection("filtrationSamples").document(station_id)
+    )
+
+    @firestore.transactional
+    def update_in_transaction(transaction):
+        snapshot = doc_ref.get(transaction=transaction)
+        current = snapshot.get("sampleCount") if snapshot.exists else 0
+        new_count = current + 1
+        transaction.set(doc_ref, {"sampleCount": new_count}, merge=True)
+        return new_count
+
+    transaction = db.transaction()
+    return update_in_transaction(transaction)
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_filter_sample(req: https_fn.Request) -> https_fn.Response:
+    data = req.get_json(silent=True)
+    if not data:
+        return https_fn.Response("Missing JSON body", status=400)
+
+    group = data.get("group", "WhiteWhale")
+    if group != "WhiteWhale":
+        return https_fn.Response(f"Unknown group for filtration: {group}", status=400)
+
+    station_id = data.get("stationId")
+    station_label = data.get("stationLabel") or station_id
+    volume_l = data.get("volumeL")
+    depth_m = data.get("depthM")
+
+    if not station_id:
+        return https_fn.Response("Missing stationId", status=400)
+    if volume_l is None:
+        return https_fn.Response("Missing volumeL", status=400)
+
+    filtration_number = _next_whale_filtration_number(station_id)
+    filename = f"{_whale_station_stem(station_label, station_id)}_Filtration{filtration_number}.txt"
+
+    content = _generate_whale_filtration_file(station_id, volume_l, depth_m, filtration_number)
+    file_id = upload_to_drive(
+        GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/plain"
+    )
+
+    return https_fn.Response(
+        json.dumps({
+            "status": "ok",
+            "filename": filename,
+            "driveFileId": file_id,
+            "filtrationNumber": filtration_number,
+        }),
+        status=200,
+        content_type="application/json",
+    )
+
+
+def _generate_whale_analysis_file(instrument, station_id, filtration_number, size_bin, volume_l, depth_m, reagent=None):
+    """Placeholder data generator shared by all 5 WhiteWhale instrument
+    functions. Just echoes the received inputs — replace with the real
+    per-instrument science model later."""
+    lines = [
+        f"Instrument: {instrument}",
+        f"Station: {station_id}",
+        f"Filtration number: {filtration_number}",
+        f"Size bin: {size_bin}",
+        f"Volume filtered (L): {volume_l}",
+        f"Station depth (m): {depth_m}",
+    ]
+    if reagent is not None:
+        lines.append(f"Reagent: {reagent}")
+    lines.append(f"Analyzed (UTC): {datetime.now(timezone.utc).isoformat()}")
+    return "\n".join(lines) + "\n"
+
+
+def _handle_whale_analysis_request(req, instrument, requires_reagent=False):
+    data = req.get_json(silent=True)
+    if not data:
+        return https_fn.Response("Missing JSON body", status=400)
+
+    group = data.get("group", "WhiteWhale")
+    if group != "WhiteWhale":
+        return https_fn.Response(f"Unknown group for advanced analysis: {group}", status=400)
+
+    station_id = data.get("stationId")
+    station_label = data.get("stationLabel") or station_id
+    filtration_number = data.get("filtrationNumber")
+    size_bin = data.get("sizeBin")
+    volume_l = data.get("volumeL")
+    depth_m = data.get("depthM")
+    reagent = data.get("reagent")
+
+    if not station_id:
+        return https_fn.Response("Missing stationId", status=400)
+    if not size_bin:
+        return https_fn.Response("Missing sizeBin", status=400)
+    if requires_reagent and not reagent:
+        return https_fn.Response("Missing reagent for incubation", status=400)
+
+    name_stem = _whale_station_stem(station_label, station_id)
+    instrument_stem = "".join(ch for ch in instrument if ch.isalnum())
+    filename = f"{name_stem}_Filtration{filtration_number}_{size_bin}_{instrument_stem}.txt"
+
+    content = _generate_whale_analysis_file(
+        instrument, station_id, filtration_number, size_bin, volume_l, depth_m, reagent
+    )
+    file_id = upload_to_drive(
+        GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/plain"
+    )
+
+    return https_fn.Response(
+        json.dumps({
+            "status": "ok",
+            "filename": filename,
+            "driveFileId": file_id,
+            "receivedInputs": {
+                "instrument": instrument,
+                "stationId": station_id,
+                "filtrationNumber": filtration_number,
+                "sizeBin": size_bin,
+                "volumeL": volume_l,
+                "depthM": depth_m,
+                "reagent": reagent,
+            },
+        }),
+        status=200,
+        content_type="application/json",
+    )
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_lcmsms(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "LCMSMS")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_xrdxrf(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "XRD/XRF")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_epr(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "EPR")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_gcms(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "GCMS")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_incubation(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "Incubations", requires_reagent=True)
 
 
 # ... (existing imports and code stay above this) ...
@@ -394,15 +577,36 @@ def _initial_tether_stations():
             "deployingEndsAt": None,
             "collectingEndsAt": None,
             "lastCollection": None,
+            "cytometer": {"status": "operational", "totalVolumeFilteredL": 0},
         }
         for i in range(1, STATION_COUNT + 1)
     ]
 
 
+def _initial_whale_advanced_state():
+    """Must match initialAdvancedState() in
+    js/games/whitewhale-tether/advanced-station-engine.js."""
+    return {
+        "lockedStationId": None,
+        "phase": "idle",
+        "requestedVolumeL": None,
+        "currentFiltrationNumber": None,
+        "sizeBinsUsed": [],
+        "selectedSizeBin": None,
+        "selectedInstrument": None,
+        "selectedReagent": None,
+        "currentRun": None,
+        "statusLog": [],
+        "lastUpdated": firestore.SERVER_TIMESTAMP,
+    }
+
+
 def _reset_whitewhale(group_ref):
-    """WhiteWhale tether reset: wipe sample counters and the tether state doc.
-    Does NOT touch drones — WhiteWhale has none."""
+    """WhiteWhale tether reset: wipe sample/filtration counters, the tether
+    state doc (incl. every station's flow cytometer), and the advanced-data
+    session. Does NOT touch drones — WhiteWhale has none."""
     delete_collection(group_ref.collection("stationSamples"))
+    delete_collection(group_ref.collection("filtrationSamples"))
 
     group_ref.collection("tether").document("state").set({
         "tetherStatus": "not_deployed",
@@ -414,6 +618,8 @@ def _reset_whitewhale(group_ref):
         "stations": _initial_tether_stations(),
         "lastUpdated": firestore.SERVER_TIMESTAMP,
     })
+    group_ref.collection("advancedStation").document("state").set(_initial_whale_advanced_state())
+
     return {"stationsReset": STATION_COUNT}
 
 

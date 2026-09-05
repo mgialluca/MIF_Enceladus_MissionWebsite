@@ -21,6 +21,7 @@
     <script type="module">
       import { GAMES_CONFIG } from "../js/games-config.js";
       import { listenToUnlocks, unlockGame, relockGame } from "../js/mission-data.js";
+      import { listenToTether, swapStationCytometers } from "../js/games/whitewhale-tether/tether-engine.js";
 
       const container = document.getElementById("admin-controls");
       let currentUnlocks = {};
@@ -94,6 +95,80 @@
         resetSection.appendChild(btn);
       });
       container.parentNode.insertBefore(resetSection, container);
+
+      // ===================== WhiteWhale flow cytometer re-allocation =====================
+      const CYTOMETER_STATUS_LABEL = { operational: "Operational", service_worn: "Service-worn", broken: "Broken" };
+
+      const cytometerSection = document.createElement("div");
+      cytometerSection.innerHTML =
+        "<h3>WhiteWhale Flow Cytometers</h3>" +
+        "<p style=\"font-size:0.85rem;\">Swaps the flow-cytometer wear state between two stations — " +
+        "use this to move a functional cytometer onto a broken station.</p>";
+
+      const cytometerList = document.createElement("ul");
+      cytometerList.style.listStyle = "none";
+      cytometerList.style.padding = "0";
+      cytometerSection.appendChild(cytometerList);
+
+      const swapRow = document.createElement("div");
+      swapRow.style.margin = "0.5rem 0";
+      const fromSelect = document.createElement("select");
+      const toSelect = document.createElement("select");
+      [fromSelect, toSelect].forEach((sel) => { sel.style.margin = "0 0.4rem 0.4rem 0"; });
+      const swapBtn = document.createElement("button");
+      swapBtn.textContent = "Swap Flow Cytometers";
+      swapRow.append("From: ", fromSelect, " To: ", toSelect, swapBtn);
+      cytometerSection.appendChild(swapRow);
+
+      const cytometerFeedback = document.createElement("p");
+      cytometerFeedback.style.fontSize = "0.85rem";
+      cytometerSection.appendChild(cytometerFeedback);
+
+      let latestTether = null;
+
+      function renderCytometerSection() {
+        cytometerList.innerHTML = "";
+        fromSelect.innerHTML = "";
+        toSelect.innerHTML = "";
+
+        const stations = latestTether?.stations || [];
+        stations.forEach((s) => {
+          const status = s.cytometer?.status || "operational";
+          const statusLabel = CYTOMETER_STATUS_LABEL[status] || status;
+
+          const li = document.createElement("li");
+          li.textContent = `${s.label}: ${statusLabel} (${s.cytometer?.totalVolumeFilteredL ?? 0} L filtered)`;
+          cytometerList.appendChild(li);
+
+          [fromSelect, toSelect].forEach((sel) => {
+            const opt = document.createElement("option");
+            opt.value = s.id;
+            opt.textContent = `${s.label} (${statusLabel})`;
+            sel.appendChild(opt);
+          });
+        });
+      }
+
+      listenToTether((data) => {
+        latestTether = data;
+        renderCytometerSection();
+      });
+
+      swapBtn.addEventListener("click", async () => {
+        cytometerFeedback.textContent = "";
+        if (fromSelect.value === toSelect.value) {
+          cytometerFeedback.textContent = "Choose two different stations.";
+          return;
+        }
+        try {
+          await swapStationCytometers(fromSelect.value, toSelect.value);
+          cytometerFeedback.textContent = "Flow cytometers swapped.";
+        } catch (err) {
+          cytometerFeedback.textContent = err.message;
+        }
+      });
+
+      container.parentNode.insertBefore(cytometerSection, container);
     </script>
 </body>
 </html>

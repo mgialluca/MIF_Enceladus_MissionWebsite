@@ -1,4 +1,5 @@
-<!-- WhiteWhale game page: tether deployment + station data collection.
+<!-- WhiteWhale game page: tether deployment + basic station data collection,
+     plus advanced (filtration/size-bin/instrument) data collection.
      Participant-only, WhiteWhale group. -->
 <!DOCTYPE html>
 <html lang="en">
@@ -18,6 +19,29 @@
             justify-content: normal;
             overflow-x: auto;
         }
+
+        /* ===== Page-level tabs ===== */
+        .page-tabs {
+            display: flex;
+            gap: 0.5rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem 1.5rem 0;
+        }
+        .page-tab-btn {
+            background: #1c3c56;
+            color: #a8cbe0;
+            border: none;
+            padding: 0.65rem 1.2rem;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: bold;
+        }
+        .page-tab-btn.active { background: #2f9bd6; color: white; }
+        .page-tab-btn:disabled { background: #142331; color: #4d6579; cursor: not-allowed; }
+        .page-tab-content { display: none; }
+        .page-tab-content.active { display: block; }
 
         .ops-layout {
             display: flex;
@@ -44,8 +68,7 @@
 
         .deploy-row { margin-bottom: 1.25rem; }
         .big-btn {
-            width: 100%;
-            padding: 0.7rem;
+            padding: 0.7rem 1.2rem;
             border: none;
             border-radius: 5px;
             background: #2f9bd6;
@@ -56,6 +79,8 @@
         }
         .big-btn:hover:not(:disabled) { background: #237bab; }
         .big-btn:disabled { background: #2c4a5e; color: #8fb0c4; cursor: not-allowed; }
+        .eject-btn { background: #a83232; }
+        .eject-btn:hover:not(:disabled) { background: #8a2828; }
 
         .depth-readout {
             margin-top: 0.6rem;
@@ -86,6 +111,7 @@
         .collection-note { font-size: 0.72rem; margin-top: 0.25rem; }
         .collection-note.success { color: #9dffbf; }
         .collection-note.error { color: #ff8080; }
+        .locked-note { font-size: 0.7rem; margin-top: 0.25rem; color: #ffcf6b; }
 
         .collect-btn {
             background: #2f9bd6; color: white; border: none; border-radius: 4px;
@@ -94,7 +120,7 @@
         .collect-btn:hover:not(:disabled) { background: #237bab; }
         .collect-btn:disabled { background: #3a3a3a; color: #777; cursor: not-allowed; }
 
-        #set-depths-btn { margin-top: 1rem; }
+        #set-depths-btn { margin-top: 1rem; width: 100%; }
 
         .feedback-msg { margin-top: 0.6rem; font-size: 0.82rem; min-height: 1rem; }
         .feedback-msg.error { color: #ff8080; }
@@ -112,46 +138,166 @@
             display: inline-block; width: 9px; height: 9px; border-radius: 2px;
             margin-right: 0.3rem; vertical-align: middle;
         }
+
+        /* ===== Advanced data collection tab ===== */
+        .adv-full-panel { flex: 1 1 100%; }
+        .adv-sub-panel { flex: 1 1 300px; min-width: 260px; }
+        .adv-sub-panel.disabled-panel { opacity: 0.45; pointer-events: none; }
+
+        .begin-filtration-btn {
+            background: #2f9bd6; color: white; border: none; border-radius: 4px;
+            padding: 0.35rem 0.6rem; font-size: 0.78rem; cursor: pointer; white-space: nowrap;
+        }
+        .begin-filtration-btn:disabled { background: #3a3a3a; color: #777; cursor: not-allowed; }
+
+        .awaiting-deploy-row { color: #6c8ba3; font-style: italic; }
+
+        .nasa-note { font-size: 0.72rem; color: #ff9d9d; }
+
+        .instrument-btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+        .instrument-btn {
+            background: #1c3c56; color: #a8cbe0; border: none; border-radius: 5px;
+            padding: 0.5rem 0.8rem; font-size: 0.82rem; cursor: pointer;
+        }
+        .instrument-btn.active { background: #2f9bd6; color: white; font-weight: bold; }
+        .instrument-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .adv-sub-panel label { display: block; margin-top: 0.75rem; font-size: 0.85rem; color: #a8cbe0; }
+        .adv-sub-panel select {
+            width: 100%; padding: 0.4rem; margin-top: 0.25rem; border-radius: 5px; border: none; box-sizing: border-box;
+        }
+
+        .bs-status-log {
+            list-style: none; margin: 0.5rem 0 0; padding: 0;
+            max-height: 260px; overflow-y: auto; font-size: 0.8rem;
+        }
+        .bs-status-log li { padding: 0.4rem 0.2rem; border-bottom: 1px solid #1c3c56; }
+        .bs-status-log .log-time { color: #7fa8c4; font-size: 0.7rem; margin-right: 0.5rem; }
+
+        .analyze-row {
+            max-width: 1200px; margin: 0 auto; padding: 0 1.5rem 1.5rem;
+            display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;
+        }
+
+        /* ===== Cytometer-break banner ===== */
+        .cytometer-banner {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: #a83232; color: white; padding: 1rem 1.25rem;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            font-size: 0.95rem;
+        }
+        .cytometer-banner-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            width: 100%; max-width: 1200px; margin: 0 auto; gap: 1rem;
+        }
+        .cytometer-banner button {
+            background: rgba(255,255,255,0.15); color: white; border: 1px solid white;
+            border-radius: 4px; padding: 0.35rem 0.7rem; cursor: pointer; white-space: nowrap;
+        }
     </style>
 </head>
 <body>
 
-    <div class="ops-layout">
-        <div class="panel control-panel">
-            <h1>WhiteWhale Tether Operations</h1>
+    <div class="page-tabs">
+        <button class="page-tab-btn active" data-page-tab="basic" id="page-tab-btn-basic">Basic Data Collection &amp; Site Selection</button>
+        <button class="page-tab-btn" data-page-tab="advanced" id="page-tab-btn-advanced" disabled>Advanced Data Collection</button>
+    </div>
 
-            <div class="deploy-row">
-                <button id="deploy-tether-btn" class="big-btn">Deploy Tether — Determine Ocean Depth</button>
-                <p id="depth-readout" class="depth-readout unknown">Ocean depth: unknown</p>
+    <!-- ===================== Basic Data Collection & Site Selection tab ===================== -->
+    <div id="page-tab-basic" class="page-tab-content active">
+        <div class="ops-layout">
+            <div class="panel control-panel">
+                <h1>WhiteWhale Tether Operations</h1>
+
+                <div class="deploy-row">
+                    <button id="deploy-tether-btn" class="big-btn" style="width:100%;">Deploy Tether — Determine Ocean Depth</button>
+                    <p id="depth-readout" class="depth-readout unknown">Ocean depth: unknown</p>
+                </div>
+
+                <h2>Stations</h2>
+                <table class="station-table">
+                    <thead>
+                        <tr>
+                            <th>Station</th>
+                            <th>Depth (m)</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="station-table-body"><!-- rows populated by JS --></tbody>
+                </table>
+
+                <button id="set-depths-btn" class="big-btn">Set Station Depths</button>
+                <p id="set-depths-feedback" class="feedback-msg"></p>
             </div>
 
-            <h2>Stations</h2>
-            <table class="station-table">
-                <thead>
-                    <tr>
-                        <th>Station</th>
-                        <th>Depth (m)</th>
-                        <th>Status</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="station-table-body"><!-- rows populated by JS --></tbody>
-            </table>
+            <div class="panel viz-panel">
+                <h2>Depth Profile</h2>
+                <canvas id="viz-canvas" width="460" height="560"></canvas>
+                <div class="viz-legend">
+                    <span><span class="legend-dot" style="background:#6c8ba3;"></span>Awaiting Depth</span>
+                    <span><span class="legend-dot" style="background:#ffb347;"></span>En Route</span>
+                    <span><span class="legend-dot" style="background:#c9a0ff;"></span>Deploying</span>
+                    <span><span class="legend-dot" style="background:#9dffbf;"></span>Standby</span>
+                    <span><span class="legend-dot" style="background:#7fd8ff;"></span>Collecting Data</span>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            <button id="set-depths-btn" class="big-btn">Set Station Depths</button>
-            <p id="set-depths-feedback" class="feedback-msg"></p>
+    <!-- ===================== Advanced Data Collection tab ===================== -->
+    <div id="page-tab-advanced" class="page-tab-content">
+        <div class="ops-layout">
+            <div class="panel adv-full-panel">
+                <h2>Station Selection &amp; Flow Cytometer Status</h2>
+                <table class="station-table">
+                    <thead>
+                        <tr>
+                            <th>Station</th>
+                            <th>Flow Cytometer Status</th>
+                            <th>Volume to Filter (L)</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="adv-station-body"><!-- rows populated by JS --></tbody>
+                </table>
+            </div>
+
+            <div class="panel adv-sub-panel" id="adv-sizebin-panel">
+                <h2>Size Bin Selection</h2>
+                <div class="instrument-btn-row" id="adv-sizebin-buttons"></div>
+            </div>
+
+            <div class="panel adv-sub-panel" id="adv-instrument-panel">
+                <h2>Instrument Selection</h2>
+                <div class="instrument-btn-row" id="adv-instrument-buttons"></div>
+                <div id="adv-reagent-row" style="display:none;">
+                    <label for="adv-reagent-select">Reagent</label>
+                    <select id="adv-reagent-select">
+                        <option value="">— choose —</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="panel adv-sub-panel">
+                <h2>Data Collection Status</h2>
+                <ul id="adv-status-log" class="bs-status-log"></ul>
+            </div>
         </div>
 
-        <div class="panel viz-panel">
-            <h2>Depth Profile</h2>
-            <canvas id="viz-canvas" width="460" height="560"></canvas>
-            <div class="viz-legend">
-                <span><span class="legend-dot" style="background:#6c8ba3;"></span>Awaiting Depth</span>
-                <span><span class="legend-dot" style="background:#ffb347;"></span>En Route</span>
-                <span><span class="legend-dot" style="background:#c9a0ff;"></span>Deploying</span>
-                <span><span class="legend-dot" style="background:#9dffbf;"></span>Standby</span>
-                <span><span class="legend-dot" style="background:#7fd8ff;"></span>Collecting Data</span>
-            </div>
+        <div class="analyze-row">
+            <button id="adv-analyze-btn" class="big-btn" disabled>Analyze Sample</button>
+            <button id="adv-eject-btn" class="big-btn eject-btn" disabled>Eject Sample</button>
+            <p id="adv-feedback" class="feedback-msg" style="margin:0;"></p>
+        </div>
+    </div>
+
+    <!-- Big on-screen notification when any flow cytometer breaks -->
+    <div id="cytometer-break-banner" class="cytometer-banner" hidden>
+        <div class="cytometer-banner-inner">
+            <strong id="cytometer-break-text"></strong>
+            <button id="cytometer-break-dismiss">Dismiss</button>
         </div>
     </div>
 
@@ -167,6 +313,10 @@
         catchUpTether, listenToTether,
         initialStations, tetherVisualFraction, stationVisualDepthM
       } from "../../js/games/whitewhale-tether/tether-engine.js";
+      import {
+        beginFiltration, selectSizeBin, selectInstrument, selectReagent,
+        startAnalysis, ejectSample, catchUpAdvancedStation, listenToAdvancedStation
+      } from "../../js/games/whitewhale-tether/advanced-station-engine.js";
 
       const { OCEAN_DEPTH_M } = TETHER_CONFIG;
 
@@ -184,10 +334,33 @@
         standby: "#9dffbf",
         collecting_data: "#7fd8ff"
       };
+      const CYTO_LABEL = { operational: "Operational", service_worn: "Service-worn", broken: "Broken" };
+      const CYTO_COLOR = { operational: "#1f5c3a", service_worn: "#7a5a1f", broken: "#5c2323" };
+      const CYTO_TEXT_COLOR = { operational: "#a8ffcf", service_worn: "#ffd28a", broken: "#ff9d9d" };
 
-      let tether = null; // latest Firestore snapshot
+      const DEPLOYED_STATUSES = ["standby", "collecting_data"];
 
-      // ---------- Build station rows once ----------
+      let tether = null;        // latest groups/WhiteWhale/tether/state snapshot
+      let advanced = null;      // latest groups/WhiteWhale/advancedStation/state snapshot
+
+      // ===================== Page-level tabs =====================
+      const pageTabBtnBasic = document.getElementById("page-tab-btn-basic");
+      const pageTabBtnAdvanced = document.getElementById("page-tab-btn-advanced");
+      const pageTabBasic = document.getElementById("page-tab-basic");
+      const pageTabAdvanced = document.getElementById("page-tab-advanced");
+
+      function showPageTab(tab) {
+        if (tab === "advanced" && pageTabBtnAdvanced.disabled) return;
+        const isBasic = tab === "basic";
+        pageTabBtnBasic.classList.toggle("active", isBasic);
+        pageTabBtnAdvanced.classList.toggle("active", !isBasic);
+        pageTabBasic.classList.toggle("active", isBasic);
+        pageTabAdvanced.classList.toggle("active", !isBasic);
+      }
+      pageTabBtnBasic.addEventListener("click", () => showPageTab("basic"));
+      pageTabBtnAdvanced.addEventListener("click", () => showPageTab("advanced"));
+
+      // ===================== Basic tab: build station rows once ==================
       const tbody = document.getElementById("station-table-body");
       initialStations().forEach((s, i) => {
         const tr = document.createElement("tr");
@@ -200,6 +373,7 @@
           <td>
             <button class="collect-btn" data-station="${s.id}" disabled>Collect Sample</button>
             <div class="collection-note" id="note-${s.id}"></div>
+            <div class="locked-note" id="locked-note-${s.id}"></div>
           </td>
         `;
         tbody.appendChild(tr);
@@ -242,10 +416,14 @@
         }
       });
 
-      // ---------- Render control panel from state ----------
-      function render() {
+      // ---------- Render basic tab from state ----------
+      function renderBasicTab() {
         const status = tether?.tetherStatus || "not_deployed";
         const locked = !!tether?.depthsLocked;
+        const powerLocked = !!advanced && advanced.phase !== "idle";
+        const lockedStation = powerLocked
+          ? (tether?.stations || []).find((s) => s.id === advanced.lockedStationId)
+          : null;
 
         // Deploy button + depth readout
         deployBtn.disabled = status !== "not_deployed";
@@ -285,7 +463,7 @@
             `${STATUS_LABEL[s.status]}</span>`;
 
           const collectBtn = document.querySelector(`#row-${s.id} .collect-btn`);
-          collectBtn.disabled = s.status !== "standby";
+          collectBtn.disabled = s.status !== "standby" || powerLocked;
 
           const note = document.getElementById(`note-${s.id}`);
           const lc = s.lastCollection;
@@ -299,10 +477,223 @@
             note.textContent = "";
             note.className = "collection-note";
           }
+
+          const lockedNote = document.getElementById(`locked-note-${s.id}`);
+          lockedNote.textContent = powerLocked
+            ? `Power routed to ${lockedStation?.label || "another station"}'s advanced data collection — basic collection unavailable until it's ejected.`
+            : "";
+        });
+
+        // Advanced tab availability: unavailable until ≥1 station is fully deployed.
+        const anyDeployed = stations.some((s) => DEPLOYED_STATUSES.includes(s.status));
+        pageTabBtnAdvanced.disabled = !anyDeployed;
+      }
+
+      // ===================== Advanced tab =====================
+      const advStationBody = document.getElementById("adv-station-body");
+      const advSizeBinPanel = document.getElementById("adv-sizebin-panel");
+      const advInstrumentPanel = document.getElementById("adv-instrument-panel");
+      const advSizeBinButtonsEl = document.getElementById("adv-sizebin-buttons");
+      const advInstrumentButtonsEl = document.getElementById("adv-instrument-buttons");
+      const advReagentRow = document.getElementById("adv-reagent-row");
+      const advReagentSelect = document.getElementById("adv-reagent-select");
+      const advAnalyzeBtn = document.getElementById("adv-analyze-btn");
+      const advEjectBtn = document.getElementById("adv-eject-btn");
+      const advFeedback = document.getElementById("adv-feedback");
+      const advStatusLogEl = document.getElementById("adv-status-log");
+
+      TETHER_CONFIG.SIZE_BINS.forEach((bin) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "instrument-btn";
+        btn.dataset.bin = bin.id;
+        btn.textContent = bin.label;
+        btn.addEventListener("click", () => selectSizeBin(bin.id).catch(console.error));
+        advSizeBinButtonsEl.appendChild(btn);
+      });
+
+      TETHER_CONFIG.INSTRUMENTS.forEach((instrument) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "instrument-btn";
+        btn.dataset.instrument = instrument;
+        btn.textContent = instrument;
+        btn.addEventListener("click", () => selectInstrument(instrument).catch(console.error));
+        advInstrumentButtonsEl.appendChild(btn);
+      });
+
+      TETHER_CONFIG.REAGENTS.forEach((r) => {
+        const opt = document.createElement("option");
+        opt.value = r;
+        opt.textContent = r;
+        advReagentSelect.appendChild(opt);
+      });
+      advReagentSelect.addEventListener("change", () => {
+        selectReagent(advReagentSelect.value).catch(console.error);
+      });
+
+      function advShowFeedback(message, isError) {
+        advFeedback.textContent = message;
+        advFeedback.className = "feedback-msg" + (isError ? " error" : " success");
+      }
+
+      advStationBody.addEventListener("click", (e) => {
+        const btn = e.target.closest(".begin-filtration-btn");
+        if (!btn) return;
+        const stationId = btn.dataset.station;
+        const input = document.getElementById(`adv-volume-${stationId}`);
+        const volumeL = input ? input.value : "";
+        beginFiltration(stationId, volumeL).catch((err) => advShowFeedback(err.message, true));
+      });
+
+      advAnalyzeBtn.addEventListener("click", async () => {
+        advFeedback.textContent = "";
+        advFeedback.className = "feedback-msg";
+        try {
+          await startAnalysis();
+        } catch (err) {
+          advShowFeedback(err.message, true);
+        }
+      });
+
+      advEjectBtn.addEventListener("click", () => {
+        const confirmed = confirm("Eject the current sample? Any size bins not yet analyzed will be discarded.");
+        if (!confirmed) return;
+        ejectSample().catch((err) => advShowFeedback(err.message, true));
+      });
+
+      function formatLogTime(ms) {
+        if (!ms) return "";
+        return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      }
+
+      function renderAdvancedTab() {
+        const adv = advanced;
+        const phase = adv?.phase || "idle";
+        const stations = tether?.stations || initialStations();
+
+        // --- Window 1: Station Selection & Flow Cytometer Status ---
+        advStationBody.innerHTML = "";
+        stations.forEach((s) => {
+          const tr = document.createElement("tr");
+
+          if (!DEPLOYED_STATUSES.includes(s.status)) {
+            tr.innerHTML = `<td>${s.label}</td><td colspan="3" class="awaiting-deploy-row">Awaiting Deployment</td>`;
+            advStationBody.appendChild(tr);
+            return;
+          }
+
+          const cyto = s.cytometer || { status: "operational", totalVolumeFilteredL: 0 };
+          const cytoLabel = CYTO_LABEL[cyto.status] || cyto.status;
+          const cytoBadge = `<span class="status-badge" style="background:${CYTO_COLOR[cyto.status]};color:${CYTO_TEXT_COLOR[cyto.status]}">${cytoLabel}</span>`;
+
+          if (cyto.status === "broken") {
+            tr.innerHTML = `
+              <td>${s.label}</td>
+              <td>${cytoBadge}</td>
+              <td colspan="2" class="nasa-note">To re-allocate flow cytometers, you may attempt to requisition NASA HQ.</td>
+            `;
+            advStationBody.appendChild(tr);
+            return;
+          }
+
+          const eligible = s.status === "standby" && phase === "idle";
+          tr.innerHTML = `
+            <td>${s.label}</td>
+            <td>${cytoBadge}</td>
+            <td><input type="number" min="0" max="${TETHER_CONFIG.MAX_FILTRATION_REQUEST_L}" step="any"
+                       id="adv-volume-${s.id}" ${eligible ? "" : "disabled"}></td>
+            <td><button class="begin-filtration-btn" data-station="${s.id}" ${eligible ? "" : "disabled"}>Begin Filtration</button></td>
+          `;
+          advStationBody.appendChild(tr);
+
+          if (eligible) {
+            const input = document.getElementById(`adv-volume-${s.id}`);
+            const btn = document.querySelector(`#adv-station-body button[data-station="${s.id}"]`);
+            const updateBtn = () => {
+              const v = Number(input.value);
+              btn.disabled = !(input.value !== "" && v > 0 && v <= TETHER_CONFIG.MAX_FILTRATION_REQUEST_L);
+            };
+            input.addEventListener("input", updateBtn);
+            updateBtn();
+          }
+        });
+
+        // --- Locked-session context ---
+        const sizeBinsUsed = adv?.sizeBinsUsed || [];
+        const sessionReady = phase === "awaiting_analysis";
+
+        // --- Window 2 & 3: greyed out unless a filtered sample is ready ---
+        advSizeBinPanel.classList.toggle("disabled-panel", !sessionReady);
+        advInstrumentPanel.classList.toggle("disabled-panel", !sessionReady);
+
+        Array.from(advSizeBinButtonsEl.children).forEach((btn) => {
+          const used = sizeBinsUsed.includes(btn.dataset.bin);
+          btn.classList.toggle("active", adv?.selectedSizeBin === btn.dataset.bin);
+          btn.disabled = !sessionReady || used;
+        });
+
+        Array.from(advInstrumentButtonsEl.children).forEach((btn) => {
+          btn.classList.toggle("active", adv?.selectedInstrument === btn.dataset.instrument);
+          btn.disabled = !sessionReady;
+        });
+
+        const showReagent = adv?.selectedInstrument === "Incubations";
+        advReagentRow.style.display = showReagent ? "block" : "none";
+        if (showReagent) {
+          advReagentSelect.value = adv?.selectedReagent || "";
+          advReagentSelect.disabled = !sessionReady;
+        }
+
+        // --- Analyze / Eject buttons ---
+        const binChosenAndUnused = !!adv?.selectedSizeBin && !sizeBinsUsed.includes(adv.selectedSizeBin);
+        const reagentOk = adv?.selectedInstrument !== "Incubations" || !!adv?.selectedReagent;
+        advAnalyzeBtn.disabled = !(sessionReady && binChosenAndUnused && !!adv?.selectedInstrument && reagentOk);
+        advEjectBtn.disabled = !sessionReady;
+
+        // --- Window 5: Data Collection Status — always visible, never greyed ---
+        advStatusLogEl.innerHTML = "";
+        const entries = [];
+        if (phase === "idle") entries.push({ message: "Stand by", at: null });
+        (adv?.statusLog || []).forEach((e) => entries.push(e));
+
+        entries.slice(0, 20).forEach((entry) => {
+          const li = document.createElement("li");
+          li.innerHTML = `<span class="log-time">${formatLogTime(entry.at)}</span>${entry.message}`;
+          advStatusLogEl.appendChild(li);
         });
       }
 
-      // ---------- Visualization ----------
+      // ===================== Cytometer-break notification =====================
+      const breakBanner = document.getElementById("cytometer-break-banner");
+      const breakText = document.getElementById("cytometer-break-text");
+      document.getElementById("cytometer-break-dismiss").addEventListener("click", () => {
+        breakBanner.hidden = true;
+      });
+
+      let previousCytoStatus = null; // null until the first snapshot establishes a baseline
+      let breakBannerTimer = null;
+
+      function checkForNewBreaks(stations) {
+        const current = {};
+        stations.forEach((s) => { current[s.id] = s.cytometer?.status || "operational"; });
+
+        if (previousCytoStatus) {
+          for (const s of stations) {
+            const was = previousCytoStatus[s.id];
+            const now = current[s.id];
+            if (was && was !== "broken" && now === "broken") {
+              breakText.textContent = `⚠ ${s.label}'s flow cytometer has broken!`;
+              breakBanner.hidden = false;
+              if (breakBannerTimer) clearTimeout(breakBannerTimer);
+              breakBannerTimer = setTimeout(() => { breakBanner.hidden = true; }, 8000);
+            }
+          }
+        }
+        previousCytoStatus = current;
+      }
+
+      // ===================== Visualization ==========================================
       const canvas = document.getElementById("viz-canvas");
       const ctx = canvas.getContext("2d");
       const W = canvas.width, H = canvas.height;
@@ -426,13 +817,24 @@
       }
       requestAnimationFrame(frameLoop);
 
-      // ---------- Wire up live state ----------
+      // ===================== Wire up live state =====================
       listenToTether((data) => {
         tether = data;
-        render();
+        checkForNewBreaks(tether?.stations || []);
+        renderBasicTab();
+        renderAdvancedTab();
       });
       catchUpTether().catch(console.error);
-      render();
+
+      listenToAdvancedStation((data) => {
+        advanced = data;
+        renderBasicTab();
+        renderAdvancedTab();
+      });
+      catchUpAdvancedStation().catch(console.error);
+
+      renderBasicTab();
+      renderAdvancedTab();
     </script>
 </body>
 </html>

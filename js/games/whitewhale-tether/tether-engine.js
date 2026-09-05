@@ -51,7 +51,10 @@ export function initialStations() {
     arrivalAt: null,
     deployingEndsAt: null,
     collectingEndsAt: null,
-    lastCollection: null
+    lastCollection: null,
+    // Advanced-data-collection hardware, persistent across sessions —
+    // only touched by a filtration request or an admin re-allocation.
+    cytometer: { status: "operational", totalVolumeFilteredL: 0 }
   }));
 }
 
@@ -327,6 +330,47 @@ export function listenToTether(callback) {
   return onSnapshot(tetherRef(), (snap) => {
     callback(snap.exists() ? snap.data() : null);
   });
+}
+
+// ===================== Advanced data collection support =====================
+// The tether doc owns each station's `cytometer` state; the orchestration
+// (lock/phase/filtration/analysis) lives in advanced-station-engine.js, which
+// calls these to read/mutate stations.
+
+/** One-off read of the full tether doc (used by advanced-station-engine.js). */
+export async function getTetherSnapshot() {
+  return getTether();
+}
+
+/** Merges `fields` into one station's `cytometer` object. */
+export async function updateStationCytometer(stationId, fields) {
+  const t = await getTether();
+  if (!t) return;
+  const stations = t.stations.map((s) =>
+    s.id === stationId ? { ...s, cytometer: { ...s.cytometer, ...fields } } : s
+  );
+  await saveTether({ stations });
+}
+
+/**
+ * Admin-only: swaps the flow-cytometer state (wear level + status) between
+ * two stations — e.g. moving a functional cytometer onto a broken station.
+ */
+export async function swapStationCytometers(stationIdA, stationIdB) {
+  const t = await getTether();
+  if (!t) throw new Error("WhiteWhale tether state not found.");
+
+  const a = t.stations.find((s) => s.id === stationIdA);
+  const b = t.stations.find((s) => s.id === stationIdB);
+  if (!a || !b) throw new Error("Station not found.");
+  if (stationIdA === stationIdB) throw new Error("Choose two different stations.");
+
+  const stations = t.stations.map((s) => {
+    if (s.id === stationIdA) return { ...s, cytometer: b.cytometer };
+    if (s.id === stationIdB) return { ...s, cytometer: a.cytometer };
+    return s;
+  });
+  await saveTether({ stations });
 }
 
 // ===================== Pure view helpers (for the visualization) =====================
