@@ -180,7 +180,12 @@
         }
 
         /* ===== Cytometer-break banner ===== */
-        .cytometer-banner {
+        /* display is set only on :not([hidden]) — an unconditional `display`
+           here would override the browser's default [hidden] rule (author
+           CSS beats the UA stylesheet at equal specificity), leaving the
+           banner visible-but-empty even while the hidden attribute is set. */
+        .cytometer-banner[hidden] { display: none; }
+        .cytometer-banner:not([hidden]) {
             position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
             background: #a83232; color: white; padding: 1rem 1.25rem;
             box-shadow: 0 4px 18px rgba(0,0,0,0.5);
