@@ -505,6 +505,39 @@ def whale_analyze_sample_incubation(req: https_fn.Request) -> https_fn.Response:
     return _handle_whale_analysis_request(req, "Incubations", requires_reagent=True)
 
 
+# ======================================================================
+# Orbiter View — plume fly-by data. The client reads the .dat file from the
+# site's assets/ folder and posts its contents here; this uploads it as-is
+# (same name, no version suffix) to the requesting team's Drive folder.
+# ======================================================================
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def orbiter_upload_plume_data(req: https_fn.Request) -> https_fn.Response:
+    data = req.get_json(silent=True)
+    if not data:
+        return https_fn.Response("Missing JSON body", status=400)
+
+    group = data.get("group")
+    flyby = data.get("flyby")
+    content = data.get("content")
+
+    if group not in GROUP_DRIVE_FOLDERS:
+        return https_fn.Response(f"Unknown group: {group}", status=400)
+    if flyby not in (1, 2):
+        return https_fn.Response("flyby must be 1 or 2", status=400)
+    if not isinstance(content, str) or not content:
+        return https_fn.Response("Missing plume data content", status=400)
+
+    filename = f"PlumeFlyby{flyby}.dat"
+    file_id = upload_to_drive(GROUP_DRIVE_FOLDERS[group], filename, content, mimetype="text/plain")
+
+    return https_fn.Response(
+        json.dumps({"status": "ok", "filename": filename, "driveFileId": file_id}),
+        status=200,
+        content_type="application/json",
+    )
+
+
 # ... (existing imports and code stay above this) ...
 
 DRONE_COUNT = 50  # keep in sync with js/games/hive-drone-explorer/config.js
@@ -642,6 +675,11 @@ def reset_group(req: https_fn.Request) -> https_fn.Response:
         result = _reset_whitewhale(group_ref)
     else:
         result = _reset_hive(group_ref, group)
+
+    # Shared by both teams: clear the orbiter timeline (the admin re-unlocking
+    # the Orbiter View restarts it) and re-lock every page for this group.
+    group_ref.collection("orbiter").document("state").delete()
+    db.collection("missionState").document("unlocks").set({f"{group}_unlocked": []}, merge=True)
 
     return https_fn.Response(
         json.dumps({"status": "ok", "group": group, **result}),

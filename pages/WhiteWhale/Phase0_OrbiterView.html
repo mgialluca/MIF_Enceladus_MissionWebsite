@@ -1,0 +1,236 @@
+<!-- WhiteWhale Orbiter View: arrival, plume fly-bys, and landing-site selection.
+     Participant-only, WhiteWhale group. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enceladus Mission Simulator - WhiteWhale - Orbiter View</title>
+    <link rel="stylesheet" href="../../css/style.css">
+
+    <style>
+        /* Override the shared centered login-box body layout (see admin.html). */
+        body {
+            display: block;
+            height: auto;
+            min-height: 100vh;
+            align-items: normal;
+            justify-content: normal;
+            overflow-x: auto;
+        }
+
+        .orbiter-wrap {
+            max-width: 720px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        h1 { font-size: 1.4rem; margin-top: 0; }
+
+        .phase-label {
+            font-size: 1.15rem;
+            color: #a8cbe0;
+            min-height: 1.6rem;
+        }
+        .big-timer {
+            font-family: monospace;
+            font-size: 4rem;
+            color: #cfeaff;
+            margin: 0.25rem 0 1rem;
+            min-height: 4.5rem;
+        }
+
+        .visual { margin: 0 auto; }
+
+        /* An author `display` rule would override the hidden attribute (see the
+           cytometer banner fix), so hide explicitly. */
+        .unknown-circle[hidden] { display: none; }
+        .unknown-circle {
+            width: 340px;
+            height: 340px;
+            max-width: 90vw;
+            max-height: 90vw;
+            margin: 0 auto;
+            border-radius: 50%;
+            border: 3px solid #2f9bd6;
+            background: #08161f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9rem;
+            color: #2f9bd6;
+            box-shadow: 0 0 30px rgba(47,155,214,0.25);
+        }
+
+        .surface-wrap {
+            position: relative;
+            width: min(560px, 100%);
+            margin: 0 auto;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: default;
+        }
+        .surface-wrap.selectable { cursor: crosshair; }
+        .surface-wrap img { width: 100%; display: block; user-select: none; }
+
+        .site-x {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #ff4d4d;
+            text-shadow: 0 0 6px rgba(0,0,0,0.8);
+            pointer-events: none;
+            line-height: 1;
+        }
+
+        .status-text {
+            margin-top: 1rem;
+            font-size: 1.15rem;
+            font-weight: bold;
+            color: #9dffbf;
+            min-height: 1.6rem;
+        }
+
+        .confirm-row { margin-top: 1rem; }
+        .confirm-btn {
+            padding: 0.7rem 1.4rem;
+            border: none;
+            border-radius: 5px;
+            background: #2f9bd6;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .confirm-btn:hover:not(:disabled) { background: #237bab; }
+        .confirm-btn:disabled { background: #2c4a5e; color: #8fb0c4; cursor: not-allowed; }
+
+        .feedback-msg { margin-top: 0.6rem; font-size: 0.85rem; color: #ff8080; min-height: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="orbiter-wrap">
+        <h1>Orbiter View</h1>
+
+        <p id="phase-label" class="phase-label">Awaiting Mission Start</p>
+        <p id="timer" class="big-timer"></p>
+
+        <div class="visual">
+            <div id="circle" class="unknown-circle">?</div>
+
+            <div id="surface-wrap" class="surface-wrap" hidden>
+                <img id="surface-img" src="../../assets/Surface.jpg" alt="Surface of Enceladus">
+                <div id="site-x" class="site-x" hidden>✕</div>
+            </div>
+        </div>
+
+        <p id="status" class="status-text"></p>
+
+        <div id="confirm-row" class="confirm-row" hidden>
+            <button id="confirm-btn" class="confirm-btn" disabled>Confirm Landing Site Selection</button>
+            <p id="feedback" class="feedback-msg"></p>
+        </div>
+    </div>
+
+    <script src="../../js/auth-guard.js"></script>
+    <script>
+      const user = requireAuth("participant", "WhiteWhale", "../../index.html");
+    </script>
+
+    <script type="module">
+      import { listenToOrbiter, orbiterPhase, tickOrbiter, confirmLandingSite } from "../../js/games/orbiter/orbiter-engine.js";
+
+      const GROUP = "WhiteWhale";
+
+      const PHASE_LABEL = {
+        arrival: "Time to Arrival",
+        flyby1: "Time to First Plume Fly-by",
+        flyby2: "Time to Second Plume Fly-by",
+        select_landing: "",
+        landing: "Landing in",
+        landed: "",
+        collect1: "",
+        collect2: "",
+        not_started: "Awaiting Mission Start"
+      };
+      const STATUS_TEXT = {
+        collect1: "Collecting Plume Data",
+        collect2: "Collecting Plume Data",
+        select_landing: "Please Select Landing Site",
+        landed: "Landing Successful - Drill View Unlocked"
+      };
+
+      const el = (id) => document.getElementById(id);
+
+      let state = null;
+      let placedSite = null; // {xPct, yPct}; local to this page, never recorded
+      let currentPhase = "not_started";
+
+      function fmtClock(seconds) {
+        const s = Math.max(0, Math.ceil(seconds));
+        return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+      }
+
+      function placeX() {
+        const x = el("site-x");
+        if (!placedSite) { x.hidden = true; return; }
+        x.hidden = false;
+        x.style.left = `${placedSite.xPct}%`;
+        x.style.top = `${placedSite.yPct}%`;
+      }
+
+      function render() {
+        const p = orbiterPhase(state, Date.now());
+        currentPhase = p.phase;
+
+        const showSurface = !["not_started", "arrival"].includes(p.phase);
+        el("circle").hidden = showSurface;
+        el("surface-wrap").hidden = !showSurface;
+
+        const selectable = p.phase === "select_landing";
+        el("surface-wrap").classList.toggle("selectable", selectable);
+
+        el("phase-label").textContent = PHASE_LABEL[p.phase] ?? "";
+        el("timer").textContent = p.remainingS != null ? fmtClock(p.remainingS) : "";
+        el("status").textContent = STATUS_TEXT[p.phase] ?? "";
+
+        el("confirm-row").hidden = !selectable;
+        el("confirm-btn").disabled = !placedSite;
+
+        placeX();
+      }
+
+      el("surface-wrap").addEventListener("click", (e) => {
+        if (currentPhase !== "select_landing") return;
+        const r = el("surface-wrap").getBoundingClientRect();
+        placedSite = {
+          xPct: ((e.clientX - r.left) / r.width) * 100,
+          yPct: ((e.clientY - r.top) / r.height) * 100
+        };
+        render();
+      });
+
+      el("confirm-btn").addEventListener("click", async () => {
+        el("feedback").textContent = "";
+        el("confirm-btn").disabled = true;
+        try {
+          await confirmLandingSite(GROUP);
+        } catch (err) {
+          el("feedback").textContent = err.message;
+          el("confirm-btn").disabled = !placedSite;
+        }
+      });
+
+      listenToOrbiter(GROUP, (data) => {
+        state = data;
+        tickOrbiter(GROUP).catch(console.error);
+        render();
+      });
+
+      // Countdowns are computed from stored timestamps, so refresh every 250ms.
+      setInterval(render, 250);
+      render();
+    </script>
+</body>
+</html>

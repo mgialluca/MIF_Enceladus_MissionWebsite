@@ -1,0 +1,133 @@
+<!-- WhiteWhale Drill View and Status: read-only drill descent. Participant-only, WhiteWhale group. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enceladus Mission Simulator - WhiteWhale - Drill View and Status</title>
+    <link rel="stylesheet" href="../../css/style.css">
+
+    <style>
+        body {
+            display: block;
+            height: auto;
+            min-height: 100vh;
+            align-items: normal;
+            justify-content: normal;
+            overflow-x: auto;
+        }
+
+        .drill-wrap {
+            max-width: 620px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        h1 { font-size: 1.4rem; margin-top: 0; }
+
+        .depth-readout {
+            font-family: monospace;
+            font-size: 2.6rem;
+            color: #cfeaff;
+            margin: 0.5rem 0 1rem;
+        }
+
+        .drill-svg {
+            width: 100%;
+            max-width: 340px;
+            display: block;
+            margin: 0 auto;
+            background: #08161f;
+            border-radius: 8px;
+        }
+
+        .status-text {
+            margin-top: 1rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #9dffbf;
+            min-height: 1.6rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="drill-wrap">
+        <h1>Drill View and Status</h1>
+
+        <p class="depth-readout">Depth: <span id="depth">0</span> m</p>
+
+        <svg class="drill-svg" viewBox="0 0 300 520" aria-label="Drill descending through ice">
+            <!-- sky above the ice surface -->
+            <rect x="0" y="0" width="300" height="40" fill="#0b1e2d"/>
+            <!-- ice, with a few layers so the descent reads as depth -->
+            <rect x="0" y="40" width="300" height="430" fill="#cfeaff"/>
+            <rect x="0" y="110" width="300" height="60" fill="#b5dcf2"/>
+            <rect x="0" y="200" width="300" height="50" fill="#a3d0ea"/>
+            <rect x="0" y="290" width="300" height="70" fill="#8fc2e0"/>
+            <rect x="0" y="390" width="300" height="80" fill="#7ab3d6"/>
+            <!-- ocean below the ice -->
+            <rect x="0" y="470" width="300" height="50" fill="#0b3b5c"/>
+            <line x1="0" y1="470" x2="300" y2="470" stroke="#2f9bd6" stroke-width="2"/>
+            <text x="150" y="36" text-anchor="middle" fill="#a8cbe0" font-size="12">Ice surface</text>
+            <text x="150" y="512" text-anchor="middle" fill="#a8cbe0" font-size="12">Ocean interface</text>
+
+            <!-- drill: rod + bit, moved down with the depth readout -->
+            <g id="drill" transform="translate(0, 0)">
+                <rect x="140" y="60" width="20" height="50" fill="#8a949c"/>
+                <polygon points="140,110 160,140 180,110" fill="#5c656d"/>
+            </g>
+        </svg>
+
+        <p id="status" class="status-text"></p>
+    </div>
+
+    <script src="../../js/auth-guard.js"></script>
+    <script>
+      const user = requireAuth("participant", "WhiteWhale", "../../index.html");
+    </script>
+
+    <script type="module">
+      import { ORBITER_CONFIG } from "../../js/games/orbiter/config.js";
+      import { listenToOrbiter, drillStartMs } from "../../js/games/orbiter/orbiter-engine.js";
+
+      const GROUP = "WhiteWhale";
+      const { DRILL_SECONDS, DRILL_TOTAL_M } = ORBITER_CONFIG;
+
+      // Drill tip travels from y≈140 (start) to the ocean interface at y≈470.
+      const DRILL_TRAVEL_PX = 330;
+
+      const depthEl = document.getElementById("depth");
+      const statusEl = document.getElementById("status");
+      const drillEl = document.getElementById("drill");
+
+      let startMs = null;
+
+      function render() {
+        if (startMs == null) {
+          depthEl.textContent = "0";
+          statusEl.textContent = "Awaiting Landing";
+          drillEl.setAttribute("transform", "translate(0, 0)");
+          return;
+        }
+
+        const elapsedS = (Date.now() - startMs) / 1000;
+        const frac = Math.min(Math.max(elapsedS / DRILL_SECONDS, 0), 1);
+        const depthM = Math.round(frac * DRILL_TOTAL_M);
+
+        depthEl.textContent = String(depthM);
+        drillEl.setAttribute("transform", `translate(0, ${frac * DRILL_TRAVEL_PX})`);
+        statusEl.textContent = frac >= 1
+          ? "Arrived at Ocean Interface -- Request Release of Science Package from Mission Control"
+          : "";
+      }
+
+      listenToOrbiter(GROUP, (data) => {
+        startMs = drillStartMs(data);
+        render();
+      });
+
+      setInterval(render, 100);
+      render();
+    </script>
+</body>
+</html>

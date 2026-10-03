@@ -8,10 +8,14 @@ export const GAMES_CONFIG = {
     //{ id: "dashboard", title: "Mission Dashboard", file: "dashboard.html" },
     // Example of adding a new game later:
     // { id: "signal-decode", title: "Signal Decode", file: "signal-decode.html" },
+    { id: "orbiter-view", title: "Orbiter View", file: "Phase0_OrbiterView.html" },
+    { id: "drill-view", title: "Drill View and Status", file: "Phase0_DrillView.html" },
     { id: "operate-drones", title: "Drone Release and Movement", file: "Phase1_ReleaseDrones.html" },
   ],
   WhiteWhale: [
     //{ id: "dashboard", title: "Mission Dashboard", file: "dashboard.html" }
+    { id: "orbiter-view", title: "Orbiter View", file: "Phase0_OrbiterView.html" },
+    { id: "drill-view", title: "Drill View and Status", file: "Phase0_DrillView.html" },
     { id: "deploy-tether", title: "Deploy Tether — Ocean Depth & Stations", file: "Phase1_DeployTether.html" },
   ]
 };

@@ -39,6 +39,10 @@
       import { GAMES_CONFIG } from "../js/games-config.js";
       import { listenToUnlocks, unlockGame, relockGame } from "../js/mission-data.js";
       import { listenToTether, swapStationCytometers } from "../js/games/whitewhale-tether/tether-engine.js";
+      import { startOrbiterTimeline } from "../js/games/orbiter/orbiter-engine.js";
+      import { ORBITER_CONFIG } from "../js/games/orbiter/config.js";
+
+      const ORBITER_GAME_ID = ORBITER_CONFIG.ORBITER_GAME_ID;
 
       const container = document.getElementById("admin-controls");
       let currentUnlocks = {};
@@ -68,11 +72,13 @@
           btn.style.margin = "0.4rem 0";
           btn.className = isUnlocked ? "unlock-btn unlocked" : "unlock-btn locked";
 
-          btn.addEventListener("click", () => {
+          btn.addEventListener("click", async () => {
               if (isUnlocked) {
               relockGame(group, game.id);
               } else {
-              unlockGame(group, game.id);
+              await unlockGame(group, game.id);
+              // Unlocking the Orbiter View starts its timeline from this moment.
+              if (game.id === ORBITER_GAME_ID) startOrbiterTimeline(group);
               }
           });
 
