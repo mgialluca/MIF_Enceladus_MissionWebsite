@@ -20,36 +20,77 @@
         }
 
         .orbiter-wrap {
-            max-width: 720px;
+            max-width: 1000px;
             margin: 2rem auto;
             padding: 1.5rem;
-            text-align: center;
         }
-        h1 { font-size: 1.4rem; margin-top: 0; }
+        h1 { font-size: 1.5rem; margin-top: 0; text-align: center; }
+
+        /* Image on one side, text column on the other; stacks on narrow screens. */
+        .stage {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+
+        .info {
+            flex: 1 1 280px;
+            max-width: 420px;
+            text-align: left;
+        }
 
         .phase-label {
-            font-size: 1.15rem;
+            font-size: 1.5rem;
             color: #a8cbe0;
-            min-height: 1.6rem;
+            margin: 0;
+            min-height: 2rem;
         }
         .big-timer {
             font-family: monospace;
-            font-size: 4rem;
+            font-size: 4.5rem;
             color: #cfeaff;
-            margin: 0.25rem 0 1rem;
-            min-height: 4.5rem;
+            margin: 0.25rem 0 0.75rem;
+            min-height: 5rem;
+        }
+        .status-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #9dffbf;
+            margin: 0;
+            min-height: 2rem;
         }
 
-        .visual { margin: 0 auto; }
+        .confirm-row { margin-top: 1.25rem; }
+        .confirm-btn {
+            padding: 0.7rem 1.4rem;
+            border: none;
+            border-radius: 5px;
+            background: #2f9bd6;
+            color: white;
+            font-weight: bold;
+            font-size: 1.05rem;
+            cursor: pointer;
+        }
+        .confirm-btn:hover:not(:disabled) { background: #237bab; }
+        .confirm-btn:disabled { background: #2c4a5e; color: #8fb0c4; cursor: not-allowed; }
+
+        .feedback-msg { margin-top: 0.6rem; font-size: 0.9rem; color: #ff8080; min-height: 1rem; }
+
+        .visual {
+            flex: 0 1 420px;
+            max-width: 100%;
+        }
 
         /* An author `display` rule would override the hidden attribute (see the
            cytometer banner fix), so hide explicitly. */
         .unknown-circle[hidden] { display: none; }
         .unknown-circle {
-            width: 340px;
-            height: 340px;
-            max-width: 90vw;
-            max-height: 90vw;
+            width: 380px;
+            height: 380px;
+            max-width: 100%;
+            aspect-ratio: 1 / 1;
             margin: 0 auto;
             border-radius: 50%;
             border: 3px solid #2f9bd6;
@@ -64,8 +105,7 @@
 
         .surface-wrap {
             position: relative;
-            width: min(560px, 100%);
-            margin: 0 auto;
+            width: 100%;
             border-radius: 8px;
             overflow: hidden;
             cursor: default;
@@ -83,52 +123,32 @@
             pointer-events: none;
             line-height: 1;
         }
-
-        .status-text {
-            margin-top: 1rem;
-            font-size: 1.15rem;
-            font-weight: bold;
-            color: #9dffbf;
-            min-height: 1.6rem;
-        }
-
-        .confirm-row { margin-top: 1rem; }
-        .confirm-btn {
-            padding: 0.7rem 1.4rem;
-            border: none;
-            border-radius: 5px;
-            background: #2f9bd6;
-            color: white;
-            font-weight: bold;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-        .confirm-btn:hover:not(:disabled) { background: #237bab; }
-        .confirm-btn:disabled { background: #2c4a5e; color: #8fb0c4; cursor: not-allowed; }
-
-        .feedback-msg { margin-top: 0.6rem; font-size: 0.85rem; color: #ff8080; min-height: 1rem; }
     </style>
 </head>
 <body>
     <div class="orbiter-wrap">
         <h1>Orbiter View</h1>
 
-        <p id="phase-label" class="phase-label">Awaiting Mission Start</p>
-        <p id="timer" class="big-timer"></p>
-        <p id="status" class="status-text"></p>
+        <div class="stage">
+            <div class="visual">
+                <div id="circle" class="unknown-circle">?</div>
 
-        <div class="visual">
-            <div id="circle" class="unknown-circle">?</div>
-
-            <div id="surface-wrap" class="surface-wrap" hidden>
-                <img id="surface-img" src="../../assets/Surface.jpg" alt="Surface of Enceladus">
-                <div id="site-x" class="site-x" hidden>✕</div>
+                <div id="surface-wrap" class="surface-wrap" hidden>
+                    <img id="surface-img" src="../../assets/Surface.jpg" alt="Surface of Enceladus">
+                    <div id="site-x" class="site-x" hidden>✕</div>
+                </div>
             </div>
-        </div>
 
-        <div id="confirm-row" class="confirm-row" hidden>
-            <button id="confirm-btn" class="confirm-btn" disabled>Confirm Landing Site Selection</button>
-            <p id="feedback" class="feedback-msg"></p>
+            <div class="info">
+                <p id="phase-label" class="phase-label">Awaiting Mission Start</p>
+                <p id="timer" class="big-timer"></p>
+                <p id="status" class="status-text"></p>
+
+                <div id="confirm-row" class="confirm-row" hidden>
+                    <button id="confirm-btn" class="confirm-btn" disabled>Confirm Landing Site Selection</button>
+                    <p id="feedback" class="feedback-msg"></p>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -18,35 +18,47 @@
         }
 
         .drill-wrap {
-            max-width: 620px;
+            max-width: 1000px;
             margin: 2rem auto;
             padding: 1.5rem;
-            text-align: center;
         }
-        h1 { font-size: 1.4rem; margin-top: 0; }
+        h1 { font-size: 1.5rem; margin-top: 0; text-align: center; }
+
+        /* Diagram on one side, text column on the other; stacks on narrow screens. */
+        .stage {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+
+        .info {
+            flex: 1 1 280px;
+            max-width: 420px;
+            text-align: left;
+        }
 
         .depth-readout {
             font-family: monospace;
-            font-size: 2.6rem;
+            font-size: 3.5rem;
             color: #cfeaff;
-            margin: 0.5rem 0 1rem;
+            margin: 0 0 0.75rem;
+        }
+        .status-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #9dffbf;
+            margin: 0;
+            min-height: 2rem;
         }
 
         .drill-svg {
             width: 100%;
-            max-width: 340px;
+            max-width: 380px;
             display: block;
-            margin: 0 auto;
             background: #08161f;
             border-radius: 8px;
-        }
-
-        .status-text {
-            margin-top: 1rem;
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: #9dffbf;
-            min-height: 1.6rem;
         }
     </style>
 </head>
@@ -54,30 +66,34 @@
     <div class="drill-wrap">
         <h1>Drill View and Status</h1>
 
-        <p class="depth-readout">Depth: <span id="depth">0</span> m</p>
-        <p id="status" class="status-text"></p>
+        <div class="stage">
+            <svg class="drill-svg" viewBox="0 0 300 520" aria-label="Drill descending through ice">
+                <!-- sky above the ice surface -->
+                <rect x="0" y="0" width="300" height="40" fill="#0b1e2d"/>
+                <!-- ice, with a few layers so the descent reads as depth -->
+                <rect x="0" y="40" width="300" height="430" fill="#cfeaff"/>
+                <rect x="0" y="110" width="300" height="60" fill="#b5dcf2"/>
+                <rect x="0" y="200" width="300" height="50" fill="#a3d0ea"/>
+                <rect x="0" y="290" width="300" height="70" fill="#8fc2e0"/>
+                <rect x="0" y="390" width="300" height="80" fill="#7ab3d6"/>
+                <!-- ocean below the ice -->
+                <rect x="0" y="470" width="300" height="50" fill="#0b3b5c"/>
+                <line x1="0" y1="470" x2="300" y2="470" stroke="#2f9bd6" stroke-width="2"/>
+                <text x="150" y="36" text-anchor="middle" fill="#a8cbe0" font-size="12">Ice surface</text>
+                <text x="150" y="512" text-anchor="middle" fill="#a8cbe0" font-size="12">Ocean interface</text>
 
-        <svg class="drill-svg" viewBox="0 0 300 520" aria-label="Drill descending through ice">
-            <!-- sky above the ice surface -->
-            <rect x="0" y="0" width="300" height="40" fill="#0b1e2d"/>
-            <!-- ice, with a few layers so the descent reads as depth -->
-            <rect x="0" y="40" width="300" height="430" fill="#cfeaff"/>
-            <rect x="0" y="110" width="300" height="60" fill="#b5dcf2"/>
-            <rect x="0" y="200" width="300" height="50" fill="#a3d0ea"/>
-            <rect x="0" y="290" width="300" height="70" fill="#8fc2e0"/>
-            <rect x="0" y="390" width="300" height="80" fill="#7ab3d6"/>
-            <!-- ocean below the ice -->
-            <rect x="0" y="470" width="300" height="50" fill="#0b3b5c"/>
-            <line x1="0" y1="470" x2="300" y2="470" stroke="#2f9bd6" stroke-width="2"/>
-            <text x="150" y="36" text-anchor="middle" fill="#a8cbe0" font-size="12">Ice surface</text>
-            <text x="150" y="512" text-anchor="middle" fill="#a8cbe0" font-size="12">Ocean interface</text>
+                <!-- drill: rod + bit, moved down with the depth readout -->
+                <g id="drill" transform="translate(0, 0)">
+                    <rect x="140" y="60" width="20" height="50" fill="#8a949c"/>
+                    <polygon points="140,110 160,140 180,110" fill="#5c656d"/>
+                </g>
+            </svg>
 
-            <!-- drill: rod + bit, moved down with the depth readout -->
-            <g id="drill" transform="translate(0, 0)">
-                <rect x="140" y="60" width="20" height="50" fill="#8a949c"/>
-                <polygon points="140,110 160,140 180,110" fill="#5c656d"/>
-            </g>
-        </svg>
+            <div class="info">
+                <p class="depth-readout">Depth: <span id="depth">0</span> m</p>
+                <p id="status" class="status-text"></p>
+            </div>
+        </div>
     </div>
 
     <script src="../../js/auth-guard.js"></script>
