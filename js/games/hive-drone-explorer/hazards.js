@@ -1,32 +1,23 @@
-// Pure hazard geometry for HIVE's drone-explorer game.
-// No Firestore, no DOM. All collision points are rounded to whole meters.
+// Hazard geometry for HIVE's drone-explorer game, measured against the real
+// seafloor (see seafloor-model.js).
+//
+// A leg is a straight line. The terrain has no closed-form intersection with
+// a line, so each leg is sampled every HAZARD_SAMPLE_STEP_M metres. The first
+// sample inside a hazard brackets the entry point, which is then narrowed by
+// bisection. All collision points are rounded to whole metres, as before.
+//
+// The proximity warning is issued IMPACT_WARNING_DISTANCE_M before the entry
+// point, whatever the hazard is.
 
 import { MISSION_CONFIG } from "./config.js";
 import { distanceMeters, roundToMeter } from "./grid-math.js";
+import { loadSeafloor, hazardAt } from "./seafloor-model.js";
 
-const EPSILON = 1e-9;
+const BISECTION_STEPS = 40;
 
-export const FLOOR_Z_M = MISSION_CONFIG.TRUE_OCEAN_DEPTH_KM * 1000;
-
-export function getVentBoxes() {
-  return MISSION_CONFIG.VENTS.map((vent) => {
-    const halfX = vent.footprintXM / 2;
-    const halfY = vent.footprintYM / 2;
-    return {
-      id: vent.id,
-      label: vent.label,
-      min: {
-        x: vent.center.x - halfX,
-        y: vent.center.y - halfY,
-        z: FLOOR_Z_M - vent.heightM
-      },
-      max: {
-        x: vent.center.x + halfX,
-        y: vent.center.y + halfY,
-        z: FLOOR_Z_M
-      }
-    };
-  });
+/** Must resolve before any leg is enriched. drone-engine.js awaits this. */
+export function ensureSeafloorLoaded() {
+  return loadSeafloor();
 }
 
 function pointAtT(from, to, t) {
@@ -37,72 +28,42 @@ function pointAtT(from, to, t) {
   };
 }
 
-function floorIntersection(leg) {
-  if (!MISSION_CONFIG.ENABLE_FLOOR_COLLISIONS) return null;
-
-  const zDelta = leg.to.z - leg.from.z;
-  if (Math.abs(zDelta) < EPSILON) return null;
-
-  const t = (FLOOR_Z_M - leg.from.z) / zDelta;
-  if (t < 0 || t > 1) return null;
-
-  return {
-    type: "floor",
-    hazardId: "ocean-floor",
-    label: "Ocean floor",
-    t,
-    point: pointAtT(leg.from, leg.to, t)
-  };
+// Hazard at the point a fraction t along the leg, or null when clear.
+function hazardOnLeg(leg, t) {
+  const p = pointAtT(leg.from, leg.to, t);
+  return hazardAt(p.x, p.y, p.z);
 }
 
-function axisInterval(fromValue, toValue, minValue, maxValue) {
-  const delta = toValue - fromValue;
-  if (Math.abs(delta) < EPSILON) {
-    if (fromValue < minValue || fromValue > maxValue) return null;
-    return { enter: -Infinity, exit: Infinity };
+function findLegCollision(leg) {
+  const length = distanceMeters(leg.from, leg.to);
+  if (length === 0) return null;
+
+  const steps = Math.max(1, Math.ceil(length / MISSION_CONFIG.HAZARD_SAMPLE_STEP_M));
+  let clearT = 0;
+
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    if (hazardOnLeg(leg, t)) {
+      // Narrow the entry point between the last clear sample and this hit.
+      let lo = clearT;
+      let hi = t;
+      for (let k = 0; k < BISECTION_STEPS; k++) {
+        const mid = (lo + hi) / 2;
+        if (hazardOnLeg(leg, mid)) hi = mid;
+        else lo = mid;
+      }
+      const hazard = hazardOnLeg(leg, hi);
+      return {
+        type: hazard.type,
+        hazardId: hazard.hazardId,
+        label: hazard.label,
+        t: hi,
+        point: pointAtT(leg.from, leg.to, hi)
+      };
+    }
+    clearT = t;
   }
-
-  const t1 = (minValue - fromValue) / delta;
-  const t2 = (maxValue - fromValue) / delta;
-  return { enter: Math.min(t1, t2), exit: Math.max(t1, t2) };
-}
-
-function boxIntersection(leg, box) {
-  const intervals = [
-    axisInterval(leg.from.x, leg.to.x, box.min.x, box.max.x),
-    axisInterval(leg.from.y, leg.to.y, box.min.y, box.max.y),
-    axisInterval(leg.from.z, leg.to.z, box.min.z, box.max.z)
-  ];
-  if (intervals.some((interval) => interval === null)) return null;
-
-  const tEnter = Math.max(...intervals.map((interval) => interval.enter), 0);
-  const tExit = Math.min(...intervals.map((interval) => interval.exit), 1);
-  if (tEnter > tExit) return null;
-
-  return {
-    type: "vent",
-    hazardId: box.id,
-    label: box.label,
-    t: tEnter,
-    point: pointAtT(leg.from, leg.to, tEnter)
-  };
-}
-
-export function findLegCollision(leg) {
-  const collisions = [];
-  const floor = floorIntersection(leg);
-  if (floor) collisions.push(floor);
-
-  if (MISSION_CONFIG.ENABLE_VENT_COLLISIONS) {
-    getVentBoxes().forEach((box) => {
-      const vent = boxIntersection(leg, box);
-      if (vent) collisions.push(vent);
-    });
-  }
-
-  if (collisions.length === 0) return null;
-  collisions.sort((a, b) => a.t - b.t);
-  return collisions[0];
+  return null;
 }
 
 export function enrichLegWithHazards(leg) {

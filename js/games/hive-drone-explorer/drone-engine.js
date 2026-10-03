@@ -14,7 +14,7 @@ import {
   decomposeMove, interpolateLegPosition, clampToBounds, roundToMeter
 } from "./grid-math.js";
 import {
-  collisionTimeMs, enrichLegWithHazards, warningTimeMs
+  collisionTimeMs, enrichLegWithHazards, warningTimeMs, ensureSeafloorLoaded
 } from "./hazards.js";
 
 function droneRef(group, droneId) {
@@ -103,6 +103,7 @@ async function activateFrontCommand(group, droneId) {
   }
 
   const command = { ...queue[0] };
+  await ensureSeafloorLoaded(); // terrain must be ready before legs are checked for hazards
   let legs = decomposeMove(drone.position, command.destination).map(enrichLegWithHazards);
   if (command.type === "return_sample" && MISSION_CONFIG.RETURN_TRIP_SPEED_MULTIPLIER !== 1) {
     legs = legs.map((leg) => ({
