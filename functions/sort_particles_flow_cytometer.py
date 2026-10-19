@@ -650,16 +650,31 @@ if __name__ == '__main__':
     # parcel4_hotspot uses an actual vent's own (x, y) and the midpoint of its
     # chimney's [z_top, z_base] range, since Parcel 4 is now a tight 3D
     # envelope around each vent, not a ~1km field-level radius.
+    #
+    # Every "transitionX_to_Y" example below sits at the depth/distance where
+    # _ease() actually returns 0.5, NOT the arithmetic midpoint of the zone —
+    # _ease is front-loaded (steepness=3), so the literal midpoint is already
+    # ~82% of the way to the target parcel and barely reads as a blend at all.
+    # Solving _ease(frac) = 0.5 gives frac = 0.21485 of the way through
+    # whichever zone (depth band, or the 10-100m vent radial band).
     _v = VENTS[0]
+    _mid_z = (_v['z_top'] + _v['z_base']) / 2
     examples = {
         'parcel0_surface': (0.0, 0.0, 0.5),
-        'transition_0to1': (0.0, 0.0, 5.0),
+        'transition_0to1': (0.0, 0.0, 2.934),      # z in [1, 10]
         'parcel1_interface': (0.0, 0.0, 15.0),
-        'transition_1to2': (0.0, 0.0, 25.0),
+        'transition_1to2': (0.0, 0.0, 22.149),     # z in [20, 30]
         'parcel2_bulk_ocean': (0.0, 0.0, 27000.0),
-        'transition_2to3': (4900.0, 4900.0, 45500.0),
+        'transition_2to3': (4900.0, 4900.0, 45214.853),  # z in [45000, 46000]
         'parcel3_periphery': (4900.0, 4900.0, 48000.0),
-        'parcel4_hotspot': (_v['x'], _v['y'], (_v['z_top'] + _v['z_base']) / 2),
+        # Horizontal offset from a real vent's own (x,y), AT its mid-chimney
+        # depth (so the vertical component of the 3D distance is 0) — a 3D
+        # distance of ~29.34m from the vent, i.e. 0.21485 of the way through
+        # the 10-100m VENT_CORE_RADIUS_M/VENT_TRANSITION_RADIUS_M band. This
+        # is the Parcel 3<->4 "transition" — radial distance from a vent, not
+        # depth, so there's no depth-based transition_3to4 to speak of.
+        'transition_3to4_vent': (_v['x'] + 29.337, _v['y'], _mid_z),
+        'parcel4_hotspot': (_v['x'], _v['y'], _mid_z),
     }
     for label, (x, y, z) in examples.items():
         df = generate_parcel_data(x, y, z, sample_volume_ml=1.0)
