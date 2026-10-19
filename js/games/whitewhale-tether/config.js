@@ -55,14 +55,19 @@ export const TETHER_CONFIG = {
 
   // Seven selectable items in the Size Bin window: six particle bins plus
   // "Dissolved Water Fraction" — always available, never shows a count.
+  // `id` is this website's own identifier (filename/attribute-safe — no "<").
+  // `particleBin` is the literal key sort_particles_flow_cytometer.py uses in
+  // its SIZE_BIN_NAMES / facsBinTotals — look counts up by THAT, not `id`.
+  // Every bin but the first happens to share the same string for both, which
+  // is exactly what let this one go unnoticed.
   SIZE_BINS: [
-    { id: "lt0.5um", label: "<0.5 µm" },
-    { id: "0.5-1um", label: "0.5 - 1 µm" },
-    { id: "1-5um", label: "1 - 5 µm" },
-    { id: "5-10um", label: "5 - 10 µm" },
-    { id: "10-20um", label: "10 - 20 µm" },
-    { id: "20-40um", label: "20 - 40 µm" },
-    { id: "dissolved", label: "Dissolved Water Fraction" }
+    { id: "lt0.5um", label: "<0.5 µm", particleBin: "<0.5um" },
+    { id: "0.5-1um", label: "0.5 - 1 µm", particleBin: "0.5-1um" },
+    { id: "1-5um", label: "1 - 5 µm", particleBin: "1-5um" },
+    { id: "5-10um", label: "5 - 10 µm", particleBin: "5-10um" },
+    { id: "10-20um", label: "10 - 20 µm", particleBin: "10-20um" },
+    { id: "20-40um", label: "20 - 40 µm", particleBin: "20-40um" },
+    { id: "dissolved", label: "Dissolved Water Fraction", particleBin: null }
   ],
 
   INSTRUMENTS: ["LCMSMS", "XRD/XRF", "EPR", "GCMS", "Incubations"],

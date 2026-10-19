@@ -11,7 +11,7 @@
 
 import { MISSION_CONFIG } from "./config.js";
 import { distanceMeters, roundToMeter } from "./grid-math.js";
-import { loadSeafloor, hazardAt } from "./seafloor-model.js";
+import { loadSeafloor, hazardAt } from "../shared/seafloor-model.js";
 
 const BISECTION_STEPS = 40;
 
@@ -31,7 +31,11 @@ function pointAtT(from, to, t) {
 // Hazard at the point a fraction t along the leg, or null when clear.
 function hazardOnLeg(leg, t) {
   const p = pointAtT(leg.from, leg.to, t);
-  return hazardAt(p.x, p.y, p.z);
+  return hazardAt(p.x, p.y, p.z, {
+    chimneyRadiusM: MISSION_CONFIG.CHIMNEY_RADIUS_M,
+    enableVentCollisions: MISSION_CONFIG.ENABLE_VENT_COLLISIONS,
+    enableFloorCollisions: MISSION_CONFIG.ENABLE_FLOOR_COLLISIONS
+  });
 }
 
 function findLegCollision(leg) {

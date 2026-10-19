@@ -164,8 +164,10 @@ CHANNELS = ['FSC_A', 'SSC_A', 'FL1_SYTO9_509nm', 'FL2_Tryptophan_357nm', 'FL3_NA
 # Columns participants are allowed to see. Parcel identity, true particle type,
 # and the instrument's own sort gating are simulation truth meant to be
 # discovered through play, not read off a column — see player_visible_csv().
+# Sample_Volume_mL isn't a column — the Flow Cytometer always runs at exactly
+# 1 mL, and that's already in the file's "#"-comment header.
 PLAYER_VISIBLE_COLUMNS = [
-    'Event_ID', 'Sample_Volume_mL', 'Size_Bin', 'Diameter_um',
+    'Event_ID', 'Size_Bin', 'Diameter_um',
     'FSC_A', 'SSC_A', 'FL1_SYTO9_509nm', 'FL2_Tryptophan_357nm', 'FL3_NAD+_450nm'
 ]
 
@@ -317,6 +319,47 @@ def _noisy_bin_counts(rng, n_particles, base_fractions):
     return dict(zip(SIZE_BIN_NAMES, counts))
 
 
+def _fair_allocate(true_counts, budget):
+    """
+    Distributes `budget` events across the bins in `true_counts` (bin -> true
+    count) so an abundant bin can't crowd out a rare one. A bin whose true
+    count already fits within an equal share of the budget still remaining
+    keeps every one of its events; whatever's left over after guaranteeing
+    that is split proportionally among the bins still over their share. This
+    runs in rounds because protecting one small bin raises the share left for
+    the others, which can let another, slightly bigger bin qualify too.
+
+    Returns bin -> allocated count, summing to min(sum(true_counts), budget).
+    Without this, a single overwhelmingly common bin (e.g. sub-micron
+    vesicles at ~99% of a population) would round every rarer bin down to
+    zero under a flat proportional scale-down, even though it has plenty of
+    real events of its own to show.
+    """
+    total_true = sum(true_counts.values())
+    if total_true <= budget:
+        return dict(true_counts)
+
+    remaining = dict(true_counts)
+    allocated = {}
+    remaining_budget = budget
+
+    while remaining:
+        fair_share = remaining_budget / len(remaining)
+        small = {b: c for b, c in remaining.items() if c <= fair_share}
+        if not small:
+            break
+        for b, c in small.items():
+            allocated[b] = c
+            remaining_budget -= c
+            del remaining[b]
+
+    big_total = sum(remaining.values())
+    for b, c in remaining.items():
+        allocated[b] = int(round(c / big_total * remaining_budget)) if big_total > 0 else 0
+
+    return allocated
+
+
 def _apply_field_drift(rng, values):
     """Extra multiplicative channel drift, layered on top of an event's own noise."""
     lo, hi = FIELD_DRIFT_CLIP
@@ -403,55 +446,66 @@ def generate_parcel_data(x, y, z, sample_volume_ml=1.0, rng=None):
 
     p = get_parcel_params(x, y, z)
 
-    n_cells = _scaled_count(p['cell_conc_per_ml'], sample_volume_ml, force_min_one=True)
-    n_vesicles = _scaled_count(p['vesicle_conc_per_ml'], sample_volume_ml)
-    n_debris = _scaled_count(p['debris_conc_per_ml'], sample_volume_ml)
+    n_cells_true = _scaled_count(p['cell_conc_per_ml'], sample_volume_ml, force_min_one=True)
+    n_vesicles_true = _scaled_count(p['vesicle_conc_per_ml'], sample_volume_ml)
+    n_debris_true = _scaled_count(p['debris_conc_per_ml'], sample_volume_ml)
 
-    # Downsample all three pools together so the file stays bounded no matter
-    # how large the requested volume is — this applies even to cell-only
-    # positions (Parcel 2 has no vesicles or debris, but a large enough volume
-    # still needs its cell count capped).
-    total = n_cells + n_vesicles + n_debris
-    if total > TARGET_MAX_EVENTS:
-        scale = TARGET_MAX_EVENTS / total
-        n_cells = max(1, int(round(n_cells * scale))) if n_cells > 0 else 0
-        n_vesicles = int(round(n_vesicles * scale))
-        n_debris = max(0, TARGET_MAX_EVENTS - n_cells - n_vesicles)
+    # The TRUE split, per bin, before any capping — debris is always <0.5um.
+    cell_counts_true = _noisy_bin_counts(rng, n_cells_true, CELL_BIN_FRACTIONS)
+    vesicle_counts_true = _noisy_bin_counts(rng, n_vesicles_true, p['vesicle_bin_fractions'])
+    debris_counts_true = {b: 0 for b in SIZE_BIN_NAMES}
+    debris_counts_true['<0.5um'] = n_debris_true
 
-    cell_counts = _noisy_bin_counts(rng, n_cells, CELL_BIN_FRACTIONS)
-    vesicle_counts = _noisy_bin_counts(rng, n_vesicles, p['vesicle_bin_fractions'])
+    true_bin_totals = {
+        b: cell_counts_true[b] + vesicle_counts_true[b] + debris_counts_true[b]
+        for b in SIZE_BIN_NAMES
+    }
+
+    # Cap the TOTAL event count fairly across bins (see _fair_allocate) rather
+    # than scaling the cell/vesicle/debris pools as flat percentages of each
+    # other — a bin that's genuinely rare (even just e.g. 100 true events)
+    # keeps every one of them instead of being rounded away by a bin that's
+    # orders of magnitude more abundant (sub-micron vesicles routinely are).
+    allocated = _fair_allocate(true_bin_totals, TARGET_MAX_EVENTS)
 
     records = []
+    for bname in SIZE_BIN_NAMES:
+        true_total = true_bin_totals[bname]
+        ratio = (allocated.get(bname, 0) / true_total) if true_total > 0 else 0.0
 
-    for bname, count in cell_counts.items():
+        n_cell_out = int(round(cell_counts_true[bname] * ratio))
         lo, hi = SIZE_BIN_RANGES_CELL[bname]
-        for _ in range(int(count)):
+        for _ in range(n_cell_out):
             diam = rng.uniform(lo, hi)
             values = _apply_field_drift(rng, _make_cell_event(rng, diam))
             records.append({'Parcel': p['name'], 'Particle_Type': 'Cell', 'Size_Bin': bname,
                              'Diameter_um': round(diam, 3), **values})
 
-    for bname, count in vesicle_counts.items():
+        n_vesicle_out = int(round(vesicle_counts_true[bname] * ratio))
         lo, hi = SIZE_BIN_RANGES_OTHER[bname]
-        for _ in range(int(count)):
+        for _ in range(n_vesicle_out):
             diam = rng.uniform(lo, hi)
             values = _apply_field_drift(rng, _make_vesicle_event(rng, diam))
             records.append({'Parcel': p['name'], 'Particle_Type': 'Vesicle', 'Size_Bin': bname,
                              'Diameter_um': round(diam, 3), **values})
 
-    lo, hi = p['debris_diam_range']
-    for _ in range(int(n_debris)):
-        diam = rng.uniform(lo, hi)
-        values = _apply_field_drift(rng, _make_debris_event(rng, p))
-        records.append({'Parcel': p['name'], 'Particle_Type': 'Debris', 'Size_Bin': '<0.5um',
-                         'Diameter_um': round(diam, 3), **values})
+        if bname == '<0.5um':
+            n_debris_out = int(round(debris_counts_true[bname] * ratio))
+            lo, hi = p['debris_diam_range']
+            for _ in range(n_debris_out):
+                diam = rng.uniform(lo, hi)
+                values = _apply_field_drift(rng, _make_debris_event(rng, p))
+                records.append({'Parcel': p['name'], 'Particle_Type': 'Debris', 'Size_Bin': bname,
+                                 'Diameter_um': round(diam, 3), **values})
 
     df = pd.DataFrame(records, columns=['Parcel', 'Particle_Type', 'Size_Bin', 'Diameter_um'] + CHANNELS
                        + ['Sort_Gate', 'Sort_Decision', 'Target_Destination'])
-    df.insert(0, 'Event_ID', np.arange(1, len(df) + 1))
-    df.insert(1, 'Sample_Volume_mL', sample_volume_ml)
     if len(df):
+        # Shuffle so rows aren't visibly grouped bin-by-bin, type-by-type —
+        # a real instrument wouldn't hand events back in that order.
+        df = df.iloc[rng.permutation(len(df))].reset_index(drop=True)
         df[CHANNELS] = df[CHANNELS].round(2)
+    df.insert(0, 'Event_ID', np.arange(1, len(df) + 1))
     return df
 
 

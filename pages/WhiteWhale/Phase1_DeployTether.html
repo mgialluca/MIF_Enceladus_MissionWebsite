@@ -153,6 +153,7 @@
         .awaiting-deploy-row { color: #6c8ba3; font-style: italic; }
 
         .nasa-note { font-size: 0.72rem; color: #ff9d9d; }
+        .in-process-tag { font-size: 0.68rem; color: #ffcf6b; margin-top: 0.2rem; }
 
         .instrument-btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
         /* Available = vivid blue, Selected = solid green, Disabled/used = flat
@@ -514,8 +515,10 @@
       const advStatusLogEl = document.getElementById("adv-status-log");
 
       const SIZE_BIN_LABELS = {};
+      const SIZE_BIN_PARTICLE_KEY = {};
       TETHER_CONFIG.SIZE_BINS.forEach((bin) => {
         SIZE_BIN_LABELS[bin.id] = bin.label;
+        SIZE_BIN_PARTICLE_KEY[bin.id] = bin.particleBin;
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "instrument-btn";
@@ -524,6 +527,15 @@
         btn.addEventListener("click", () => selectSizeBin(bin.id).catch(console.error));
         advSizeBinButtonsEl.appendChild(btn);
       });
+
+      // "100" stays as-is; 1000+ shows as e.g. "1e3" / "1.2e4" — compact
+      // enough for a button label.
+      function formatParticleCount(n) {
+        if (n < 1000) return String(n);
+        const exp = Math.floor(Math.log10(n));
+        const mantissa = Number((n / Math.pow(10, exp)).toFixed(1));
+        return `${mantissa}e${exp}`;
+      }
 
       TETHER_CONFIG.INSTRUMENTS.forEach((instrument) => {
         const btn = document.createElement("button");
@@ -613,11 +625,13 @@
           const eligible = s.status === "standby" && phase === "idle";
           const minL = TETHER_CONFIG.MIN_FILTRATION_REQUEST_L;
           const maxL = TETHER_CONFIG.MAX_FILTRATION_REQUEST_L;
+          const inProcess = phase !== "idle" && adv?.lockedStationId === s.id;
+          const inProcessTag = inProcess ? `<div class="in-process-tag">⚙ Analysis in Process</div>` : "";
           tr.innerHTML = `
             <td>${s.label}</td>
-            <td>${cytoBadge}</td>
+            <td>${cytoBadge}${inProcessTag}</td>
             <td><input type="number" min="${minL}" max="${maxL}" step="any"
-                       id="adv-volume-${s.id}" placeholder="${minL * 1000}mL–${maxL}L" ${eligible ? "" : "disabled"}></td>
+                       id="adv-volume-${s.id}" placeholder="${minL}–${maxL} L" ${eligible ? "" : "disabled"}></td>
             <td><button class="begin-filtration-btn" data-station="${s.id}" ${eligible ? "" : "disabled"}>Begin Filtration</button></td>
           `;
           advStationBody.appendChild(tr);
@@ -649,8 +663,11 @@
         Array.from(advSizeBinButtonsEl.children).forEach((btn) => {
           const binId = btn.dataset.bin;
           const used = sizeBinsUsed.includes(binId);
-          const count = adv?.facsBinTotals?.[binId];
-          btn.textContent = count != null ? `${SIZE_BIN_LABELS[binId]} (${count})` : SIZE_BIN_LABELS[binId];
+          const particleKey = SIZE_BIN_PARTICLE_KEY[binId];
+          const count = particleKey != null ? adv?.facsBinTotals?.[particleKey] : null;
+          btn.textContent = count != null
+            ? `${SIZE_BIN_LABELS[binId]} (${formatParticleCount(count)})`
+            : SIZE_BIN_LABELS[binId];
           btn.classList.toggle("active", selectedBins.includes(binId));
           btn.disabled = !sessionReady || used;
         });
@@ -747,7 +764,7 @@
 
         ctx.fillStyle = deployed ? "#a8cbe0" : "#ff6b6b";
         const floorLabel = deployed
-          ? `Sea Floor (Depth Z = ${OCEAN_DEPTH_M} m)`
+          ? `Sea Floor (Depth Z = ${tether.oceanDepthM} m)`
           : "Sea Floor (Depth Z = ?? m)";
         ctx.fillText(floorLabel, 14, BOTTOM_Y + 18);
 

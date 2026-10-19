@@ -18,6 +18,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 import { TETHER_CONFIG, stationTravelSeconds } from "./config.js";
+import { loadSeafloor, depthAt } from "../shared/seafloor-model.js";
+
+// Tether x,y — fixed for now (see docs/firestore-schema-tethergame.md).
+const TETHER_X_M = 0;
+const TETHER_Y_M = 0;
 
 const {
   GROUP, OCEAN_DEPTH_M, STATION_COUNT,
@@ -120,9 +125,10 @@ async function tick() {
   if (t.tetherStatus === "deploying" && t.tetherDeployStartedAt != null) {
     const doneAt = t.tetherDeployStartedAt + TETHER_DEPLOY_SECONDS * 1000;
     if (now >= doneAt) {
+      await loadSeafloor();
       patch.tetherStatus = "deployed";
       patch.tetherDeployedAt = doneAt;
-      patch.oceanDepthM = OCEAN_DEPTH_M;
+      patch.oceanDepthM = Math.round(depthAt(TETHER_X_M, TETHER_Y_M));
       changed = true;
     }
   }
