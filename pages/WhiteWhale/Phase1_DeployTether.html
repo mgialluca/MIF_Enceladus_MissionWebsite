@@ -513,7 +513,9 @@
       const advFeedback = document.getElementById("adv-feedback");
       const advStatusLogEl = document.getElementById("adv-status-log");
 
+      const SIZE_BIN_LABELS = {};
       TETHER_CONFIG.SIZE_BINS.forEach((bin) => {
+        SIZE_BIN_LABELS[bin.id] = bin.label;
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "instrument-btn";
@@ -609,11 +611,13 @@
           }
 
           const eligible = s.status === "standby" && phase === "idle";
+          const minL = TETHER_CONFIG.MIN_FILTRATION_REQUEST_L;
+          const maxL = TETHER_CONFIG.MAX_FILTRATION_REQUEST_L;
           tr.innerHTML = `
             <td>${s.label}</td>
             <td>${cytoBadge}</td>
-            <td><input type="number" min="0" max="${TETHER_CONFIG.MAX_FILTRATION_REQUEST_L}" step="any"
-                       id="adv-volume-${s.id}" ${eligible ? "" : "disabled"}></td>
+            <td><input type="number" min="${minL}" max="${maxL}" step="any"
+                       id="adv-volume-${s.id}" placeholder="${minL * 1000}mL–${maxL}L" ${eligible ? "" : "disabled"}></td>
             <td><button class="begin-filtration-btn" data-station="${s.id}" ${eligible ? "" : "disabled"}>Begin Filtration</button></td>
           `;
           advStationBody.appendChild(tr);
@@ -623,7 +627,7 @@
             const btn = document.querySelector(`#adv-station-body button[data-station="${s.id}"]`);
             const updateBtn = () => {
               const v = Number(input.value);
-              btn.disabled = !(input.value !== "" && v > 0 && v <= TETHER_CONFIG.MAX_FILTRATION_REQUEST_L);
+              btn.disabled = !(input.value !== "" && v >= minL && v <= maxL);
             };
             input.addEventListener("input", updateBtn);
             updateBtn();
@@ -632,15 +636,22 @@
 
         // --- Locked-session context ---
         const sizeBinsUsed = adv?.sizeBinsUsed || [];
+        const selectedBins = adv?.selectedSizeBins || [];
         const sessionReady = phase === "awaiting_analysis";
 
         // --- Window 2 & 3: greyed out unless a filtered sample is ready ---
         advSizeBinPanel.classList.toggle("disabled-panel", !sessionReady);
         advInstrumentPanel.classList.toggle("disabled-panel", !sessionReady);
 
+        // Bin buttons are multi-select — a participant can combine several
+        // bins into one analysis — and show the FACS count once it's known
+        // (never for "dissolved", which has no particle count).
         Array.from(advSizeBinButtonsEl.children).forEach((btn) => {
-          const used = sizeBinsUsed.includes(btn.dataset.bin);
-          btn.classList.toggle("active", adv?.selectedSizeBin === btn.dataset.bin);
+          const binId = btn.dataset.bin;
+          const used = sizeBinsUsed.includes(binId);
+          const count = adv?.facsBinTotals?.[binId];
+          btn.textContent = count != null ? `${SIZE_BIN_LABELS[binId]} (${count})` : SIZE_BIN_LABELS[binId];
+          btn.classList.toggle("active", selectedBins.includes(binId));
           btn.disabled = !sessionReady || used;
         });
 
@@ -657,9 +668,9 @@
         }
 
         // --- Analyze / Eject buttons ---
-        const binChosenAndUnused = !!adv?.selectedSizeBin && !sizeBinsUsed.includes(adv.selectedSizeBin);
+        const binsChosenAndUnused = selectedBins.length > 0 && selectedBins.every((b) => !sizeBinsUsed.includes(b));
         const reagentOk = adv?.selectedInstrument !== "Incubations" || !!adv?.selectedReagent;
-        advAnalyzeBtn.disabled = !(sessionReady && binChosenAndUnused && !!adv?.selectedInstrument && reagentOk);
+        advAnalyzeBtn.disabled = !(sessionReady && binsChosenAndUnused && !!adv?.selectedInstrument && reagentOk);
         advEjectBtn.disabled = !sessionReady;
 
         // --- Window 5: Data Collection Status — always visible, never greyed ---

@@ -30,6 +30,8 @@ import google.auth
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
+import sort_particles_flow_cytometer as flowcyt
+
 initialize_app()
 
 # Drive folder IDs per group — paste in the real IDs from Step 2A.
@@ -37,6 +39,23 @@ GROUP_DRIVE_FOLDERS = {
     "HIVE": "1t5C7viVVWv7gAUc8p5PdAdKtjw-ABK7D",
     "WhiteWhale": "1DqkT7cZ_ONiMgpL4GEPwoGJ_wPBwT-4f",
 }
+
+
+def _build_file_header(mission, instrument, x, y, z, volume_ml, sample_type, method_file="method file"):
+    """Metadata comment lines every data file gets from now on, so any file —
+    regardless of instrument — can be traced back to what/where/how much.
+    Prepend this to a file's content before uploading."""
+    lines = [
+        f"# Mission: {mission}",
+        f"# Instrument: {instrument}",
+        f"# X (m): {x}",
+        f"# Y (m): {y}",
+        f"# Depth Z (m): {z}",
+        f"# Water Volume (mL): {volume_ml}",
+        f"# Sample Type: {sample_type}",
+        f"# Method File: {method_file}",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def generate_placeholder_csv(x, y, z):
@@ -308,7 +327,11 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
     sample_number = get_next_station_sample_number(group, station_id)
     filename = f"{_whale_station_stem(station_label, station_id)}_Sample{sample_number}.txt"
 
-    content = generate_placeholder_station_file(station_label, sample_number, depth_m)
+    header = _build_file_header(
+        mission="White Whale", instrument="Basic Water Sample",
+        x=0, y=0, z=depth_m, volume_ml="N/A", sample_type="bulk"
+    )
+    content = header + generate_placeholder_station_file(station_label, sample_number, depth_m)
     file_id = upload_to_drive(
         GROUP_DRIVE_FOLDERS[group], filename, content, mimetype="text/plain"
     )
@@ -326,29 +349,24 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
 
 
 # ======================================================================
-# WhiteWhale advanced data collection — filtration + 5 instrument functions.
-# Filtration is its own Cloud Function/counter (separate from basic
-# collection above). Each instrument analysis is its own deployable function,
-# sharing one request handler, mirroring HIVE's base-station setup.
+# WhiteWhale advanced data collection — Flow Cytometer, FACS, and 5 instrument
+# functions. Every filtration run goes through two stages: the first 1 mL
+# through the Flow Cytometer (full per-event spreadsheet, the real science
+# model in sort_particles_flow_cytometer.py), then the rest through FACS
+# (bin totals only, no event cap). Both share one filtration-number counter
+# so their files tag back to the same run. Each instrument analysis is its
+# own deployable function sharing one request handler, mirroring HIVE's
+# base-station setup.
+#
+# WhiteWhale's station x,y isn't chosen by players yet (see config comments
+# elsewhere) — every call here uses the (0, 0) placeholder until that exists.
 # ======================================================================
-
-def _generate_whale_filtration_file(station_id, volume_l, depth_m, filtration_number):
-    """Placeholder data generator for a WhiteWhale filtration run. Replace
-    later with the real science model."""
-    lines = [
-        f"Station: {station_id}",
-        f"Filtration number: {filtration_number}",
-        f"Volume filtered (L): {volume_l}",
-        f"Station depth (m): {depth_m}",
-        f"Filtered (UTC): {datetime.now(timezone.utc).isoformat()}",
-    ]
-    return "\n".join(lines) + "\n"
-
 
 def _next_whale_filtration_number(station_id):
     """Firestore atomic counter, one per station, shared across all
-    filtration runs — used both in the filtration filename and passed along
-    to tag every downstream size-bin analysis for that batch."""
+    filtration runs — claimed once by whale_flow_cytometer_sample per run,
+    then passed along to tag the FACS file and every downstream size-bin
+    analysis for that same batch."""
     db = firestore.client()
     doc_ref = (
         db.collection("groups").document("WhiteWhale")
@@ -368,32 +386,41 @@ def _next_whale_filtration_number(station_id):
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def whale_filter_sample(req: https_fn.Request) -> https_fn.Response:
+def whale_flow_cytometer_sample(req: https_fn.Request) -> https_fn.Response:
+    """The first 1 mL of every filtration run, always — the real per-event
+    science model, capped at flowcyt.TARGET_MAX_EVENTS. Claims this run's
+    filtration number; the FACS call and every analysis call reuse it."""
     data = req.get_json(silent=True)
     if not data:
         return https_fn.Response("Missing JSON body", status=400)
 
     group = data.get("group", "WhiteWhale")
     if group != "WhiteWhale":
-        return https_fn.Response(f"Unknown group for filtration: {group}", status=400)
+        return https_fn.Response(f"Unknown group for flow cytometry: {group}", status=400)
 
     station_id = data.get("stationId")
     station_label = data.get("stationLabel") or station_id
-    volume_l = data.get("volumeL")
     depth_m = data.get("depthM")
+    x_m = data.get("xM", 0)
+    y_m = data.get("yM", 0)
 
     if not station_id:
         return https_fn.Response("Missing stationId", status=400)
-    if volume_l is None:
-        return https_fn.Response("Missing volumeL", status=400)
+    if depth_m is None:
+        return https_fn.Response("Missing depthM", status=400)
 
     filtration_number = _next_whale_filtration_number(station_id)
-    filename = f"{_whale_station_stem(station_label, station_id)}_Filtration{filtration_number}.txt"
+    filename = f"{_whale_station_stem(station_label, station_id)}_Filtration{filtration_number}_FlowCytometer.csv"
 
-    content = _generate_whale_filtration_file(station_id, volume_l, depth_m, filtration_number)
-    file_id = upload_to_drive(
-        GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/plain"
+    df = flowcyt.generate_parcel_data(x_m, y_m, depth_m, sample_volume_ml=1.0)
+    visible = flowcyt.player_visible_csv(df)
+
+    header = _build_file_header(
+        mission="White Whale", instrument="Flow Cytometer",
+        x=x_m, y=y_m, z=depth_m, volume_ml=1.0, sample_type="bulk"
     )
+    content = header + visible.to_csv(index=False)
+    file_id = upload_to_drive(GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/csv")
 
     return https_fn.Response(
         json.dumps({
@@ -407,7 +434,63 @@ def whale_filter_sample(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def _generate_whale_analysis_file(instrument, station_id, filtration_number, size_bin, volume_l, depth_m, reagent=None):
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_facs_sample(req: https_fn.Request) -> https_fn.Response:
+    """The rest of a filtration run, after the first 1 mL — bin totals only,
+    uncapped. The totals include the first mL's own true count (not the
+    capped spreadsheet's count), so this file reports the whole sample."""
+    data = req.get_json(silent=True)
+    if not data:
+        return https_fn.Response("Missing JSON body", status=400)
+
+    group = data.get("group", "WhiteWhale")
+    if group != "WhiteWhale":
+        return https_fn.Response(f"Unknown group for FACS: {group}", status=400)
+
+    station_id = data.get("stationId")
+    station_label = data.get("stationLabel") or station_id
+    filtration_number = data.get("filtrationNumber")
+    total_volume_ml = data.get("totalVolumeMl")
+    depth_m = data.get("depthM")
+    x_m = data.get("xM", 0)
+    y_m = data.get("yM", 0)
+
+    if not station_id:
+        return https_fn.Response("Missing stationId", status=400)
+    if total_volume_ml is None:
+        return https_fn.Response("Missing totalVolumeMl", status=400)
+    if depth_m is None:
+        return https_fn.Response("Missing depthM", status=400)
+
+    first_ml = min(1.0, total_volume_ml)
+    remaining_ml = max(0.0, total_volume_ml - 1.0)
+    totals_first = flowcyt.uncapped_bin_totals(x_m, y_m, depth_m, first_ml)
+    totals_rest = flowcyt.uncapped_bin_totals(x_m, y_m, depth_m, remaining_ml)
+    bin_totals = {b: totals_first[b] + totals_rest[b] for b in totals_first}
+
+    filename = f"{_whale_station_stem(station_label, station_id)}_Filtration{filtration_number}_FACS.csv"
+
+    header = _build_file_header(
+        mission="White Whale", instrument="FACS",
+        x=x_m, y=y_m, z=depth_m, volume_ml=total_volume_ml, sample_type="bulk"
+    )
+    rows = "Size_Bin,Particle_Count\n" + "\n".join(f"{b},{c}" for b, c in bin_totals.items())
+    content = header + rows + "\n"
+    file_id = upload_to_drive(GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/csv")
+
+    return https_fn.Response(
+        json.dumps({
+            "status": "ok",
+            "filename": filename,
+            "driveFileId": file_id,
+            "binTotals": bin_totals,
+        }),
+        status=200,
+        content_type="application/json",
+    )
+
+
+def _generate_whale_analysis_file(instrument, station_id, filtration_number, size_bins, volume_l, depth_m, reagent=None):
     """Placeholder data generator shared by all 5 WhiteWhale instrument
     functions. Just echoes the received inputs — replace with the real
     per-instrument science model later."""
@@ -415,7 +498,7 @@ def _generate_whale_analysis_file(instrument, station_id, filtration_number, siz
         f"Instrument: {instrument}",
         f"Station: {station_id}",
         f"Filtration number: {filtration_number}",
-        f"Size bin: {size_bin}",
+        f"Size bin(s): {', '.join(size_bins)}",
         f"Volume filtered (L): {volume_l}",
         f"Station depth (m): {depth_m}",
     ]
@@ -437,25 +520,37 @@ def _handle_whale_analysis_request(req, instrument, requires_reagent=False):
     station_id = data.get("stationId")
     station_label = data.get("stationLabel") or station_id
     filtration_number = data.get("filtrationNumber")
-    size_bin = data.get("sizeBin")
+    size_bins = data.get("sizeBins")
     volume_l = data.get("volumeL")
     depth_m = data.get("depthM")
     reagent = data.get("reagent")
+    x_m = data.get("xM", 0)
+    y_m = data.get("yM", 0)
 
     if not station_id:
         return https_fn.Response("Missing stationId", status=400)
-    if not size_bin:
-        return https_fn.Response("Missing sizeBin", status=400)
+    if not size_bins or not isinstance(size_bins, list):
+        return https_fn.Response("Missing sizeBins (expected a non-empty list)", status=400)
     if requires_reagent and not reagent:
         return https_fn.Response("Missing reagent for incubation", status=400)
 
     name_stem = _whale_station_stem(station_label, station_id)
     instrument_stem = "".join(ch for ch in instrument if ch.isalnum())
-    filename = f"{name_stem}_Filtration{filtration_number}_{size_bin}_{instrument_stem}.txt"
+    bins_stem = "+".join(size_bins)
+    filename = f"{name_stem}_Filtration{filtration_number}_{bins_stem}_{instrument_stem}.txt"
 
-    content = _generate_whale_analysis_file(
-        instrument, station_id, filtration_number, size_bin, volume_l, depth_m, reagent
+    # "Dissolved Water Fraction" analyzed on its own is a dissolved sample;
+    # anything else (alone or combined with Dissolved) is a size-bin sample.
+    sample_type = "dissolved" if size_bins == ["dissolved"] else "size bin"
+
+    header = _build_file_header(
+        mission="White Whale", instrument=instrument,
+        x=x_m, y=y_m, z=depth_m, volume_ml=(volume_l or 0) * 1000, sample_type=sample_type
     )
+    body = _generate_whale_analysis_file(
+        instrument, station_id, filtration_number, size_bins, volume_l, depth_m, reagent
+    )
+    content = header + body
     file_id = upload_to_drive(
         GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/plain"
     )
@@ -469,7 +564,7 @@ def _handle_whale_analysis_request(req, instrument, requires_reagent=False):
                 "instrument": instrument,
                 "stationId": station_id,
                 "filtrationNumber": filtration_number,
-                "sizeBin": size_bin,
+                "sizeBins": size_bins,
                 "volumeL": volume_l,
                 "depthM": depth_m,
                 "reagent": reagent,
@@ -624,8 +719,9 @@ def _initial_whale_advanced_state():
         "phase": "idle",
         "requestedVolumeL": None,
         "currentFiltrationNumber": None,
+        "facsBinTotals": None,
         "sizeBinsUsed": [],
-        "selectedSizeBin": None,
+        "selectedSizeBins": [],
         "selectedInstrument": None,
         "selectedReagent": None,
         "currentRun": None,

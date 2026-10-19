@@ -4,8 +4,18 @@ Documentation only. Firestore is schemaless; these paths are created the first
 time code writes to them. This file keeps every script touching them consistent.
 
 Game code: `js/games/whitewhale-tether/` + `pages/WhiteWhale/Phase1_DeployTether.html`
-Cloud Functions: `whale_collect_basic_data_sample`, `whale_filter_sample`,
+Cloud Functions: `whale_collect_basic_data_sample`, `whale_flow_cytometer_sample`, `whale_facs_sample`,
 `whale_analyze_sample_{lcmsms,xrdxrf,epr,gcms,incubation}`, `reset_group` (WhiteWhale branch)
+
+Every data file this game uploads (basic collection, Flow Cytometer, FACS, and
+each instrument analysis) is prefixed with the same `#`-comment metadata
+block: Mission, Instrument, X/Y/Z (m), Water Volume (mL), Sample Type
+("bulk" | "size bin" | "dissolved"), and Method File (always the literal
+string "method file" for now). See `_build_file_header()` in `functions/main.py`.
+WhiteWhale's station x,y isn't chosen by players yet, so every call uses an
+(0, 0) placeholder — which happens to sit inside vent field 5's influence
+(see `sort_particles_flow_cytometer.py`'s `VENT_FIELDS`), so a deep enough
+station already reads as Hydrothermal Hotspot today.
 
 ## Path: groups/WhiteWhale/tether/state
 
@@ -74,47 +84,60 @@ Fields:
 ## Path: groups/WhiteWhale/filtrationSamples/{stationId}
 
 Fields:
-- sampleCount: <number>   // atomic counter owned by whale_filter_sample; one per station,
-                          // shared across every filtration run at that station. Names
-                          // StationN_FiltrationM.txt and is passed to every downstream
-                          // size-bin analysis as `filtrationNumber` so those files tag
-                          // back to the batch: StationN_FiltrationM_{sizeBin}_{Instrument}.txt
+- sampleCount: <number>   // atomic counter owned by whale_flow_cytometer_sample; one per
+                          // station, claimed once per filtration run (shared by that run's
+                          // Flow Cytometer file, FACS file, and every downstream analysis).
+                          // Names StationN_FiltrationM_FlowCytometer.csv /
+                          // StationN_FiltrationM_FACS.csv /
+                          // StationN_FiltrationM_{sizeBins}_{Instrument}.txt
 
 ## Path: groups/WhiteWhale/advancedStation/state
 
 Single shared doc — one "session" for the whole group; only one station can
-hold the power lock (filtering or analyzing) at a time. Written by
-`advanced-station-engine.js`, initialized by `reset_group`.
+hold the power lock at a time (Flow Cytometer pass, FACS sorting, or
+analyzing). Written by `advanced-station-engine.js`, initialized by `reset_group`.
 
 Fields:
 - lockedStationId: <string> | null    // which station currently holds the lock
-- phase: "idle" | "filtering" | "awaiting_analysis" | "analyzing"
-- requestedVolumeL: <number> | null   // this session's filtration volume
-- currentFiltrationNumber: <number> | null   // from whale_filter_sample's response
-- sizeBinsUsed: [ <sizeBin id>, ... ]  // each size bin may only be analyzed once per sample
-- selectedSizeBin: <string> | null
+- phase: "idle" | "flow_cytometer" | "facs_sorting" | "awaiting_analysis" | "analyzing"
+- requestedVolumeL: <number> | null   // this session's TOTAL requested filtration volume
+- currentFiltrationNumber: <number> | null   // from whale_flow_cytometer_sample's response;
+                                              // reused by the FACS call and every analysis call
+- facsBinTotals: { [sizeBinId]: <number> } | null  // from whale_facs_sample; shown on the
+                                                    // size-bin buttons once FACS finishes
+- sizeBinsUsed: [ <sizeBin id>, ... ]  // each of the 7 items may only be analyzed once per sample
+- selectedSizeBins: [ <sizeBin id>, ... ]  // multi-select — combine several into one analysis
 - selectedInstrument: "LCMSMS" | "XRD/XRF" | "EPR" | "GCMS" | "Incubations" | null
 - selectedReagent: <string> | null    // only meaningful when instrument === "Incubations"
 - currentRun: null | {
-    type: "filtration" | "analysis",
-    stationId, volumeL, startedAt: <epoch ms>, endsAt: <epoch ms>,
-    sizeBin, instrument, reagent   // analysis runs only
+    type: "flow_cytometer" | "facs_sorting" | "analysis",
+    stationId, startedAt: <epoch ms>, endsAt: <epoch ms>,
+    volumeL,                        // flow_cytometer / analysis runs
+    sizeBins, instrument, reagent   // analysis runs only
   }
 - statusLog: [ up to 20 × { message: <string>, at: <epoch ms>|null }, newest first ]
 - lastUpdated: <epoch ms> (engine) or serverTimestamp (reset)
 
 Phase flow:
   idle
-    → (Begin Filtration, roll succeeds)      → filtering       (volumeL * FILTRATION_SECONDS_PER_L)
-    → (filtration finishes, upload fires)    → awaiting_analysis
-    → (size bin + instrument + Analyze)      → analyzing       (ANALYSIS_SECONDS)
-    → (analysis finishes, upload fires)      → awaiting_analysis (or back to idle if all 5 bins used)
+    → (Begin Filtration, roll succeeds)        → flow_cytometer  (FLOW_CYTOMETER_SECONDS, fixed)
+    → (FC finishes, upload fires)              → facs_sorting    ((volumeL - 1 mL) * FACS_SECONDS_PER_L)
+    → (FACS finishes, upload fires)            → awaiting_analysis
+    → (size bin(s) + instrument + Analyze)     → analyzing       (ANALYSIS_SECONDS)
+    → (analysis finishes, upload fires)        → awaiting_analysis (or idle if all 7 items used)
     → (Eject Sample, only while awaiting_analysis) → idle
 
-  A broken roll on "Begin Filtration" never enters "filtering" — the cytometer
-  goes straight to "broken" and phase stays "idle" (filtration never happened).
-  While phase !== "idle", every station's basic "Collect Sample" is blocked
-  too — there's only one tether's worth of power to go around.
+  A broken roll on "Begin Filtration" never enters "flow_cytometer" — the
+  cytometer goes straight to "broken" and phase stays "idle" (filtration
+  never happened). While phase !== "idle", every station's basic "Collect
+  Sample" is blocked too — there's only one tether's worth of power to go
+  around. Cytometer wear is credited once, for the FULL requested volume,
+  when the FACS stage finishes (Flow Cytometer and FACS count as the same
+  instrument for wear purposes).
+
+  "Dissolved Water Fraction" is one of the 7 selectable items in
+  selectedSizeBins/sizeBinsUsed; it never appears in facsBinTotals (no
+  particle count applies to it).
 
 ## Notes / known limitations
 

@@ -33,12 +33,17 @@ export const TETHER_CONFIG = {
   // above FAIL_AT_L: guaranteed break.
   CYTOMETER_WEAR_START_L: 50,
   CYTOMETER_FAIL_AT_L: 100,
-  MAX_FILTRATION_REQUEST_L: 100,   // single-request cap on the volume input
+  MIN_FILTRATION_REQUEST_L: 0.001,  // 1 mL — the Flow Cytometer's fixed first pass
+  MAX_FILTRATION_REQUEST_L: 10,     // single-request cap on the volume input
 
   // --- Timings: developer speed (edit these raw numbers before a workshop —
   // real values noted alongside, same "no debug toggle" pattern as the rest
   // of this game). ---
-  FILTRATION_SECONDS_PER_L: 0.5,   // real: 180 (3 min/L)
+  // Every filtration run is two stages: a fixed-length Flow Cytometer pass on
+  // the first 1 mL, then FACS on whatever's left (0 if exactly 1 mL was
+  // requested — the stage still runs, just near-instantly).
+  FLOW_CYTOMETER_SECONDS: 10,      // fixed, regardless of total requested volume
+  FACS_SECONDS_PER_L: 0.5,         // real: 180 (3 min/L) — applies only to the volume AFTER the first 1 mL
   ANALYSIS_SECONDS: 10,            // real: per-instrument, see INSTRUMENT_ANALYSIS_MINUTES
 
   // Real per-instrument analysis minutes — not used yet (ANALYSIS_SECONDS above
@@ -48,20 +53,26 @@ export const TETHER_CONFIG = {
     LCMSMS: 5, "XRD/XRF": 2, EPR: 2, GCMS: 4, Incubations: 2
   },
 
+  // Seven selectable items in the Size Bin window: six particle bins plus
+  // "Dissolved Water Fraction" — always available, never shows a count.
   SIZE_BINS: [
     { id: "lt0.5um", label: "<0.5 µm" },
     { id: "0.5-1um", label: "0.5 - 1 µm" },
     { id: "1-5um", label: "1 - 5 µm" },
     { id: "5-10um", label: "5 - 10 µm" },
-    { id: "10-20um", label: "10 - 20 µm" }
+    { id: "10-20um", label: "10 - 20 µm" },
+    { id: "20-40um", label: "20 - 40 µm" },
+    { id: "dissolved", label: "Dissolved Water Fraction" }
   ],
 
   INSTRUMENTS: ["LCMSMS", "XRD/XRF", "EPR", "GCMS", "Incubations"],
 
   REAGENTS: ["14C-formate", "14C-acetate", "14C-D-glycine", "14C-L-glycine"],
 
-  FILTER_SAMPLE_URL:
-    "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_filter_sample",
+  FLOW_CYTOMETER_URL:
+    "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_flow_cytometer_sample",
+  FACS_URL:
+    "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_facs_sample",
 
   // One Cloud Function per instrument — see functions/main.py.
   INSTRUMENT_FUNCTION_URLS: {
@@ -78,9 +89,10 @@ export function stationTravelSeconds(depthM) {
   return (depthM / 1000) * TETHER_CONFIG.STATION_TRAVEL_SECONDS_PER_KM;
 }
 
-// Filtration time (seconds) for a given volume.
-export function filtrationSeconds(volumeL) {
-  return volumeL * TETHER_CONFIG.FILTRATION_SECONDS_PER_L;
+// FACS sorting time (seconds) for a given volume — the volume remaining
+// after the Flow Cytometer's fixed first-1-mL pass.
+export function facsSeconds(remainingVolumeL) {
+  return remainingVolumeL * TETHER_CONFIG.FACS_SECONDS_PER_L;
 }
 
 /**
