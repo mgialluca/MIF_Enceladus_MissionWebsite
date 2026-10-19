@@ -55,7 +55,7 @@ SIZE_BIN_NAMES = list(SIZE_BIN_RANGES_CELL.keys())
 
 # Baseline cell size distribution — the same in every parcel. Any bin left out
 # is 0% at baseline; the noise step in _noisy_bin_counts still gives it a
-# small chance of a stray event (see BIN_NOISE_ALPHA_FLOOR below).
+# small chance of a stray event (see BIN_NOISE_STRAY_MEAN below).
 CELL_BIN_FRACTIONS = {'<0.5um': 0.09, '0.5-1um': 0.75, '1-5um': 0.15, '5-10um': 0.01}
 
 # ── Parcel definitions ───────────────────────────────────────────────────────
@@ -138,22 +138,87 @@ Z_TRANSITION_23_END = 46000.0  # 45-46 km: Parcel 2 -> Parcel 3; 46 km+: Parcel 
 # How sharply every transition band approaches its target (see _ease()).
 TRANSITION_STEEPNESS = 3.0
 
-# ── Vent fields ───────────────────────────────────────────────────────────────
-# Center (website x,y metres, i.e. CRADLE_7Field_Nonuniform_Canonical_v5.csv's
-# field_center_{x,y}_m shifted by -5000 to match the website's centered grid —
-# same shift seafloor-model.js applies) plus the two radii (m) that gate
-# Parcel 4: inside active_r is full Parcel 4; out to strong_r is an
-# exponential decay back toward whatever the depth rule gives at that depth.
-# Re-derive these by hand if the vent catalogue changes.
-VENT_FIELDS = [
-    {'field_id': 1, 'cx': -3750.0, 'cy': -3350.0, 'active_r': 1195.1, 'strong_r': 1418.5},
-    {'field_id': 2, 'cx': -450.0,  'cy': -3750.0, 'active_r': 930.6,  'strong_r': 1057.8},
-    {'field_id': 3, 'cx': 2900.0,  'cy': -2950.0, 'active_r': 1155.9, 'strong_r': 1395.3},
-    {'field_id': 4, 'cx': -2950.0, 'cy': 150.0,   'active_r': 744.5,  'strong_r': 823.8},
-    {'field_id': 5, 'cx': 550.0,   'cy': -250.0,  'active_r': 979.6,  'strong_r': 1133.2},
-    {'field_id': 6, 'cx': 3300.0,  'cy': 1750.0,  'active_r': 764.1,  'strong_r': 853.1},
-    {'field_id': 7, 'cx': -750.0,  'cy': 3550.0,  'active_r': 1126.5, 'strong_r': 1348.5},
+# ── Vents ─────────────────────────────────────────────────────────────────────
+# Parcel 4 is a tight envelope around each actual vent chimney, not the whole
+# ~1km field footprint (that field-level active_field_radius_m/
+# strong_influence_radius_m are a different, much larger scale, used
+# elsewhere for e.g. the field's overall thermal-detectability radius — they
+# are NOT the right numbers for "am I at a hydrothermal vent"). Within
+# VENT_CORE_RADIUS_M of the nearest vent's own 3D structure, full Parcel 4; out
+# to VENT_TRANSITION_RADIUS_M, an exponential decay back toward whatever the
+# depth rule gives. Distance is true 3D distance to the vent's vertical
+# chimney segment (from the seafloor at z_base up to the chimney top at
+# z_top = z_base - vent_height_m) — NOT horizontal-only — so a point directly
+# above a vent but thousands of metres shallower than its actual structure
+# does not count as Parcel 4.
+#
+# x, y: website metres (CRADLE_7Field_Nonuniform_Canonical_v5.csv's x_m/y_m
+# shifted by -5000, same convention as seafloor-model.js). z_top, z_base:
+# precomputed from that same catalogue's vent_height_m against the real
+# terrain model (assets/seafloor/seafloor_*.npy) — every vent here lands
+# between ~47.7-49.4 km, well below the 45-46 km Parcel 2/3 transition, so it
+# never interacts with that depth band. Re-derive by hand (bilinear-sample
+# the terrain at each vent's x,y, subtract vent_height_m for z_top) if either
+# the terrain or the vent catalogue changes.
+VENT_CORE_RADIUS_M = 10.0
+VENT_TRANSITION_RADIUS_M = 100.0
+
+VENTS = [
+    {'field_id': 1, 'vent_id': 1, 'x': -4112.5, 'y': -3055.8, 'z_top': 48189.0, 'z_base': 48987.9},
+    {'field_id': 1, 'vent_id': 2, 'x': -3245.5, 'y': -3209.0, 'z_top': 48194.2, 'z_base': 48992.3},
+    {'field_id': 1, 'vent_id': 3, 'x': -3957.7, 'y': -3591.7, 'z_top': 48007.2, 'z_base': 48854.8},
+    {'field_id': 1, 'vent_id': 4, 'x': -3913.1, 'y': -3490.2, 'z_top': 48161.8, 'z_base': 48914.3},
+    {'field_id': 1, 'vent_id': 5, 'x': -3412.1, 'y': -3269.9, 'z_top': 48286.4, 'z_base': 49009.9},
+    {'field_id': 1, 'vent_id': 6, 'x': -3524.8, 'y': -3175.2, 'z_top': 47763.6, 'z_base': 48743.8},
+    {'field_id': 1, 'vent_id': 7, 'x': -3765.7, 'y': -3449.5, 'z_top': 48077.6, 'z_base': 48891.8},
+    {'field_id': 2, 'vent_id': 1, 'x': -130.9,  'y': -3524.3, 'z_top': 48652.2, 'z_base': 49243.5},
+    {'field_id': 2, 'vent_id': 2, 'x': -333.0,  'y': -3611.7, 'z_top': 48575.8, 'z_base': 49186.6},
+    {'field_id': 2, 'vent_id': 3, 'x': -279.0,  'y': -3764.1, 'z_top': 48189.5, 'z_base': 48993.2},
+    {'field_id': 2, 'vent_id': 4, 'x': -690.6,  'y': -3440.7, 'z_top': 48741.9, 'z_base': 49282.5},
+    {'field_id': 2, 'vent_id': 5, 'x': -756.8,  'y': -4011.1, 'z_top': 48493.8, 'z_base': 49160.4},
+    {'field_id': 3, 'vent_id': 1, 'x': 2675.5,  'y': -3006.5, 'z_top': 48174.4, 'z_base': 48973.3},
+    {'field_id': 3, 'vent_id': 2, 'x': 3123.1,  'y': -2827.6, 'z_top': 47752.7, 'z_base': 48724.2},
+    {'field_id': 3, 'vent_id': 3, 'x': 2921.7,  'y': -3418.3, 'z_top': 47808.4, 'z_base': 48641.0},
+    {'field_id': 3, 'vent_id': 4, 'x': 3026.2,  'y': -2863.9, 'z_top': 48386.2, 'z_base': 49017.4},
+    {'field_id': 3, 'vent_id': 5, 'x': 2796.5,  'y': -3353.7, 'z_top': 48287.9, 'z_base': 49046.7},
+    {'field_id': 3, 'vent_id': 6, 'x': 2898.9,  'y': -2440.5, 'z_top': 47873.8, 'z_base': 48841.2},
+    {'field_id': 3, 'vent_id': 7, 'x': 2922.5,  'y': -3485.3, 'z_top': 47712.8, 'z_base': 48621.5},
+    {'field_id': 4, 'vent_id': 1, 'x': -2668.9, 'y': 6.3,     'z_top': 48878.7, 'z_base': 49369.5},
+    {'field_id': 4, 'vent_id': 2, 'x': -2839.1, 'y': 289.3,   'z_top': 48878.8, 'z_base': 49364.4},
+    {'field_id': 4, 'vent_id': 3, 'x': -3239.8, 'y': 66.2,    'z_top': 48677.5, 'z_base': 49271.8},
+    {'field_id': 5, 'vent_id': 1, 'x': 166.9,   'y': -448.6,  'z_top': 48660.1, 'z_base': 49253.6},
+    {'field_id': 5, 'vent_id': 2, 'x': 858.2,   'y': -286.7,  'z_top': 48468.7, 'z_base': 49144.3},
+    {'field_id': 5, 'vent_id': 3, 'x': 276.7,   'y': -613.6,  'z_top': 48418.4, 'z_base': 48944.1},
+    {'field_id': 5, 'vent_id': 4, 'x': 311.8,   'y': -597.1,  'z_top': 48415.4, 'z_base': 48938.6},
+    {'field_id': 5, 'vent_id': 5, 'x': 652.5,   'y': -268.3,  'z_top': 48699.8, 'z_base': 49247.7},
+    {'field_id': 6, 'vent_id': 1, 'x': 3094.6,  'y': 1676.6,  'z_top': 48884.7, 'z_base': 49372.4},
+    {'field_id': 6, 'vent_id': 2, 'x': 3328.7,  'y': 1923.3,  'z_top': 48845.2, 'z_base': 49342.8},
+    {'field_id': 6, 'vent_id': 3, 'x': 3497.6,  'y': 1640.1,  'z_top': 48978.9, 'z_base': 49416.0},
+    {'field_id': 7, 'vent_id': 1, 'x': -892.4,  'y': 3141.7,  'z_top': 47923.1, 'z_base': 48867.0},
+    {'field_id': 7, 'vent_id': 2, 'x': -914.6,  'y': 3782.4,  'z_top': 48331.4, 'z_base': 49057.1},
+    {'field_id': 7, 'vent_id': 3, 'x': -988.1,  'y': 3437.1,  'z_top': 47917.3, 'z_base': 48843.8},
+    {'field_id': 7, 'vent_id': 4, 'x': -483.1,  'y': 3528.0,  'z_top': 48087.8, 'z_base': 48938.6},
+    {'field_id': 7, 'vent_id': 5, 'x': -291.3,  'y': 3387.2,  'z_top': 48315.9, 'z_base': 49077.0},
+    {'field_id': 7, 'vent_id': 6, 'x': -847.0,  'y': 3480.2,  'z_top': 48024.3, 'z_base': 48890.4},
 ]
+
+
+def _nearest_vent_distance_m(x, y, z):
+    """True 3D distance from (x, y, z) to the nearest vent's vertical chimney
+    segment (x, y, between z_top and z_base) across all VENTS."""
+    best = float('inf')
+    for v in VENTS:
+        horiz = np.hypot(x - v['x'], y - v['y'])
+        if z < v['z_top']:
+            vert = v['z_top'] - z
+        elif z > v['z_base']:
+            vert = z - v['z_base']
+        else:
+            vert = 0.0
+        dist = np.hypot(horiz, vert)
+        if dist < best:
+            best = dist
+    return best
 
 # File stays bounded regardless of how much water was actually sampled — large
 # volumes are downsampled to a representative subset, not generated in full.
@@ -172,16 +237,25 @@ PLAYER_VISIBLE_COLUMNS = [
 ]
 
 # Bin-split noise: every call perturbs the baseline fractions (Dirichlet) before
-# drawing counts (multinomial), so the realized split varies call to call. A
-# baseline-0% bin (like 20-40um outside Parcel 1) gets a fixed small alpha
-# instead of a scaled-down one — scaling a tiny epsilon by CONCENTRATION makes
-# it numerically negligible and a stray event effectively never happens, which
-# defeats the point. Raise CONCENTRATION to make the real bins hug their
-# baseline more tightly; raise ALPHA_FLOOR to make strays into normally-empty
-# bins more common (both at a given sample size — larger samples naturally
-# produce more strays either way, since there are more draws to land one).
+# drawing counts (multinomial), so the realized split among the bins that
+# actually have a nonzero baseline varies call to call. Raise CONCENTRATION to
+# make those real bins hug their baseline more tightly.
 BIN_NOISE_CONCENTRATION = 800.0
-BIN_NOISE_ALPHA_FLOOR = 0.2
+
+# A baseline-0% bin (like 20-40um outside Parcel 1) gets a SEPARATE, small
+# Poisson-distributed stray count with this fixed mean — deliberately NOT
+# scaled by n_particles. An earlier design folded empty bins into the same
+# Dirichlet/multinomial draw as the real bins via a fixed alpha floor, which
+# gives every empty bin a constant MEAN FRACTION of the total population
+# (~0.025% at the tuning used here) regardless of sample size. That looked
+# fine for small, low-concentration samples, but Parcel 4's concentrations are
+# enormous (~31,000 vesicles/mL + ~25,520 cells/mL) — at 1 L that's ~59
+# million real particles, and 0.025% of that is tens of thousands of "stray"
+# events, not the occasional handful the noise was meant to model. A stray
+# count that stays a small, roughly-constant handful no matter how large the
+# real population is matches the intent: rare instrument misclassification,
+# not a rate that scales with the sample.
+BIN_NOISE_STRAY_MEAN = 1.5  # cells and vesicles each draw independently and sum, so a bin's realized stray count averages ~2x this
 
 # Extra multiplicative channel drift applied to every event on top of its own
 # per-event noise, modeling PMT/electronic drift in a field-deployed instrument
@@ -235,54 +309,52 @@ def get_parcel_params(x, y, z):
     — all in METRES, (0, 0) at the base station, matching every other
     coordinate in this project.
 
-    Depth zones:
+    Depth zones (the "background" — what you'd get with no vent nearby):
       0-1 m        Parcel 0 (surface, dissolved only — no particles at all)
       1-10 m       exponential transition, Parcel 0 -> Parcel 1
       10-20 m      Parcel 1 (Ice/Water Interface)
       20-30 m      exponential transition, Parcel 1 -> Parcel 2
       30 m-45 km   Parcel 2 (Bulk Ocean)
       45-46 km     exponential transition, Parcel 2 -> Parcel 3
-      46 km+       Parcel 3 (Hydrothermal Periphery) — unless within a vent
-                   field's influence (see below), which pulls it toward
-                   Parcel 4 (Hydrothermal Hotspot).
+      46 km+       Parcel 3 (Hydrothermal Periphery)
 
-    Vent-field override — only checked at 45 km+, since the fields themselves
-    sit at the seafloor; a shallow point directly above one is still just
-    whatever the depth rule above says. Within active_r of the NEAREST
-    field's center (plain 2D distance — same convention as seafloor.py's own
-    zone_at()), full Parcel 4. Out to strong_r, an exponential transition from
-    Parcel 4 back to whatever the depth rule gives at that exact depth — so
-    at 45.5 km the decay band blends toward that depth's own Parcel 2/3 mix,
-    not a hardcoded Parcel 3.
+    Vent override — checked at every depth (not just 45 km+), using true 3D
+    distance to the nearest vent's own chimney structure (see VENTS /
+    _nearest_vent_distance_m), not horizontal distance to a field center.
+    Within VENT_CORE_RADIUS_M of a vent, full Parcel 4 (Hydrothermal Hotspot).
+    Out to VENT_TRANSITION_RADIUS_M, an exponential transition from Parcel 4
+    back to the background above — so right at the edge of that band, the
+    blend lands on that depth's own background mix, not a hardcoded Parcel 3.
+    Every real vent sits well below 46 km, so in practice this only ever
+    fires near the seafloor; it's depth-independent on principle so a point
+    thousands of metres above a vent is never mistaken for Parcel 4.
     """
     if z < 0:
         raise ValueError(f"z must be a non-negative depth in m, got {z}")
 
     if z <= Z_PARCEL0_END:
-        return PARCELS[0]
-    if z <= Z_TRANSITION_01_END:
+        background = PARCELS[0]
+    elif z <= Z_TRANSITION_01_END:
         frac = (z - Z_PARCEL0_END) / (Z_TRANSITION_01_END - Z_PARCEL0_END)
-        return _blend_params(PARCELS[0], PARCELS[1], frac)
-    if z <= Z_PARCEL1_END:
-        return PARCELS[1]
-    if z <= Z_TRANSITION_12_END:
+        background = _blend_params(PARCELS[0], PARCELS[1], frac)
+    elif z <= Z_PARCEL1_END:
+        background = PARCELS[1]
+    elif z <= Z_TRANSITION_12_END:
         frac = (z - Z_PARCEL1_END) / (Z_TRANSITION_12_END - Z_PARCEL1_END)
-        return _blend_params(PARCELS[1], PARCELS[2], frac)
-    if z <= Z_PARCEL2_END:
-        return PARCELS[2]
-
-    if z <= Z_TRANSITION_23_END:
-        depth_frac = (z - Z_PARCEL2_END) / (Z_TRANSITION_23_END - Z_PARCEL2_END)
-        background = _blend_params(PARCELS[2], PARCELS[3], depth_frac)
+        background = _blend_params(PARCELS[1], PARCELS[2], frac)
+    elif z <= Z_PARCEL2_END:
+        background = PARCELS[2]
+    elif z <= Z_TRANSITION_23_END:
+        frac = (z - Z_PARCEL2_END) / (Z_TRANSITION_23_END - Z_PARCEL2_END)
+        background = _blend_params(PARCELS[2], PARCELS[3], frac)
     else:
         background = PARCELS[3]
 
-    nearest = min(VENT_FIELDS, key=lambda f: np.hypot(x - f['cx'], y - f['cy']))
-    dist = np.hypot(x - nearest['cx'], y - nearest['cy'])
-    if dist <= nearest['active_r']:
+    dist = _nearest_vent_distance_m(x, y, z)
+    if dist <= VENT_CORE_RADIUS_M:
         return PARCELS[4]
-    if dist <= nearest['strong_r']:
-        radial_frac = (dist - nearest['active_r']) / (nearest['strong_r'] - nearest['active_r'])
+    if dist <= VENT_TRANSITION_RADIUS_M:
+        radial_frac = (dist - VENT_CORE_RADIUS_M) / (VENT_TRANSITION_RADIUS_M - VENT_CORE_RADIUS_M)
         return _blend_params(PARCELS[4], background, radial_frac)
     return background
 
@@ -300,23 +372,36 @@ def _scaled_count(conc_per_ml, sample_volume_ml, force_min_one=False):
 
 def _noisy_bin_counts(rng, n_particles, base_fractions):
     """
-    Splits n_particles across SIZE_BIN_NAMES with two layers of randomness:
-    a Dirichlet perturbation of the baseline fractions (so the overall split
-    drifts call to call), then a multinomial draw of actual counts from that
-    perturbed split. A baseline-0% bin gets a fixed alpha (BIN_NOISE_ALPHA_FLOOR)
-    rather than a scaled-down fraction, so it keeps a small, real chance of a
-    stray count instead of being perturbed into numerical nonexistence.
+    Splits n_particles across the bins that actually have a nonzero baseline
+    fraction (a Dirichlet perturbation of those fractions, then a multinomial
+    draw, so the realized split drifts call to call but always sums to
+    n_particles), then adds a small, independent Poisson-distributed stray
+    count (mean BIN_NOISE_STRAY_MEAN) to every bin that is at 0% baseline —
+    extra artifact events on top, not a slice of the real population. The
+    stray mean does NOT scale with n_particles; see BIN_NOISE_STRAY_MEAN for
+    why a scaled approach breaks down at Parcel 4's concentrations.
+
+    n_particles == 0 means there is no real population in this category at
+    all (e.g. Parcel 0, or vesicles outside Parcel 1/3/4) — stays all-zero,
+    no stray events either, matching "no particles at all" for that parcel.
     """
+    counts = {b: 0 for b in SIZE_BIN_NAMES}
     if n_particles <= 0:
-        return {b: 0 for b in SIZE_BIN_NAMES}
-    alpha = np.array([
-        base_fractions.get(b, 0.0) * BIN_NOISE_CONCENTRATION
-        if base_fractions.get(b, 0.0) > 0 else BIN_NOISE_ALPHA_FLOOR
-        for b in SIZE_BIN_NAMES
-    ])
-    noisy = rng.dirichlet(alpha)
-    counts = rng.multinomial(n_particles, noisy)
-    return dict(zip(SIZE_BIN_NAMES, counts))
+        return counts
+
+    real_bins = [b for b in SIZE_BIN_NAMES if base_fractions.get(b, 0.0) > 0]
+    if real_bins:
+        alpha = np.array([base_fractions[b] * BIN_NOISE_CONCENTRATION for b in real_bins])
+        noisy = rng.dirichlet(alpha)
+        real_counts = rng.multinomial(n_particles, noisy)
+        for b, c in zip(real_bins, real_counts):
+            counts[b] = int(c)
+
+    for b in SIZE_BIN_NAMES:
+        if b not in real_bins:
+            counts[b] = int(rng.poisson(BIN_NOISE_STRAY_MEAN))
+
+    return counts
 
 
 def _fair_allocate(true_counts, budget):
@@ -559,19 +644,22 @@ def hidden_particle_breakdown(df):
 
 
 if __name__ == '__main__':
-    # A few representative depths (m), at x=y=0 (clear of every vent field).
+    # A few representative depths (m). (0,0) is ~790 m in 3D from the nearest
+    # actual vent (see VENTS) — outside even the 100 m transition band — so
+    # it cleanly shows the plain depth-based zones with no vent influence.
+    # parcel4_hotspot uses an actual vent's own (x, y) and the midpoint of its
+    # chimney's [z_top, z_base] range, since Parcel 4 is now a tight 3D
+    # envelope around each vent, not a ~1km field-level radius.
+    _v = VENTS[0]
     examples = {
         'parcel0_surface': (0.0, 0.0, 0.5),
         'transition_0to1': (0.0, 0.0, 5.0),
         'parcel1_interface': (0.0, 0.0, 15.0),
         'transition_1to2': (0.0, 0.0, 25.0),
         'parcel2_bulk_ocean': (0.0, 0.0, 27000.0),
-        # (0,0) sits only ~600 m from vent field 5's center — clear of every
-        # field at (4900, 4900) instead, so these two actually show the plain
-        # depth-based transition/periphery rather than a vent-influenced read.
         'transition_2to3': (4900.0, 4900.0, 45500.0),
         'parcel3_periphery': (4900.0, 4900.0, 48000.0),
-        'parcel4_hotspot': (-3750.0, -3350.0, 48000.0),  # at vent field 1's center
+        'parcel4_hotspot': (_v['x'], _v['y'], (_v['z_top'] + _v['z_base']) / 2),
     }
     for label, (x, y, z) in examples.items():
         df = generate_parcel_data(x, y, z, sample_volume_ml=1.0)
