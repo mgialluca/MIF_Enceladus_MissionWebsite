@@ -85,24 +85,43 @@ HIVE-only. Single shared doc — one physical base station for the whole group;
 it can select/prep/analyze exactly one drone's sample at a time. Written by
 `js/games/hive-drone-explorer/base-station-engine.js`.
 
+Every sample is analyzed bulk — there is no pre-filtration step (removed; was
+a 6-option filter-size select). Minimum volume for ANY instrument is 1 mL
+(`MIN_ANALYSIS_VOLUME_L`); FC additionally has its own maximum of 1 mL
+(`FC_MAX_VOLUME_L`) — both in `config.js`, mirrored by hand in
+`functions/main.py`. Since both are 0.001 L, FC is effectively pinned to
+exactly 1 mL. A "Notes" panel on the tab (`MISSION_CONFIG.BASE_STATION_NOTES`,
+a plain string array rendered as a bullet list) documents constraints like
+this one for players — add more strings there as they come up.
+
 Fields:
 - selectedDroneId: <string> | null
-- filtration: "none" | "0.5um" | "1um" | "5um" | "10um" | "20um" | null
 - volumeToAnalyzeL: <number> | null
 - instrument: "CE-LIF" | "CE-C4D" | "GCMS" | "FC" | "Microscope" | "Incubation" | null
 - reagent: <string> | null   // only meaningful when instrument === "Incubation"
 - stationStatus: "standby" | "analyzing"
 - currentRun: null | {
-    droneId, filtration, volumeToAnalyzeL, instrument, reagent,
+    droneId, volumeToAnalyzeL, instrument, reagent,
     originPosition: { x, y, z },
     startedAt: <epoch ms>, endsAt: <epoch ms>
   }
 - statusLog: [ up to 20 × { message: <string>, at: <epoch ms>|null }, newest first ]
 - lastUpdated: <epoch ms>
 
+FC is the one real instrument today: `hive_analyze_sample_fc` calls the same
+per-event science model WhiteWhale's Flow Cytometer uses
+(`sort_particles_flow_cytometer.generate_parcel_data` / `player_visible_csv`),
+at the drone's own `originPosition` (x, y, z) rather than a fixed station
+location — so every HIVE Flow Cytometer file reflects wherever that
+particular drone actually drew its sample. Output is a `.csv`
+(`{droneId}_Analysis{N}_FC.csv`) with the same `#`-comment metadata header
+(`_build_file_header(mission="HIVE", ...)`) WhiteWhale's files get. The other
+5 instruments remain the shared placeholder (`_generate_analysis_file`,
+`.txt` output, no header) until they get the same treatment.
+
 ## Path: groups/HIVE/analysisSamples/{droneId}
 HIVE-only. Atomic counter, one per drone, shared across all 6 instruments —
-names analysis files `{droneId}_Analysis{N}_{Instrument}.txt`.
+names analysis files `{droneId}_Analysis{N}_{Instrument}.txt` (`.csv` for FC).
 
 Fields:
 - sampleCount: <number>

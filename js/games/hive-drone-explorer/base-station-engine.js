@@ -1,8 +1,9 @@
 // Base-station engine for HIVE's "advanced data collection" feature.
 // One shared doc for the whole HIVE group — a single physical base station
-// that can select/prep/analyze exactly one drone's sample at a time. Setup
-// fields (selection/filtration/instrument/volume/reagent) persist immediately
-// on change; "Analyze Sample" locks them into a currentRun and drives a
+// that can select/prep/analyze exactly one drone's sample at a time. Every
+// sample is analyzed bulk — there is no pre-filtration step. Setup fields
+// (selection/instrument/volume/reagent) persist immediately on change;
+// "Analyze Sample" locks them into a currentRun and drives a
 // client-side setTimeout, same pattern as drone-engine.js and the WhiteWhale
 // tether engine, including catch-up on load.
 //
@@ -14,15 +15,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 import { MISSION_CONFIG, scaledBaseStationSeconds } from "./config.js";
+
+const { MIN_ANALYSIS_VOLUME_L, FC_MAX_VOLUME_L } = MISSION_CONFIG;
 import { getDroneSnapshot, applyDroneSampleUpdate, returnDroneToOcean } from "./drone-engine.js";
 
 const GROUP = "HIVE";
 const DEPLETED_EPSILON = 0.001;
-
-const FILTRATION_LABELS = MISSION_CONFIG.FILTRATION_OPTIONS.reduce((map, f) => {
-  map[f.id] = f.label;
-  return map;
-}, {});
 
 function baseStationRef() {
   return doc(db, "groups", GROUP, "baseStation", "state");
@@ -40,7 +38,6 @@ async function saveBaseStation(patch) {
 function initialBaseStationState() {
   return {
     selectedDroneId: null,
-    filtration: null,
     volumeToAnalyzeL: null,
     instrument: null,
     reagent: null,
@@ -80,12 +77,6 @@ export async function selectDrone(droneId) {
     return;
   }
   await saveBaseStation({ selectedDroneId: droneId });
-}
-
-export async function setFiltration(filtration) {
-  const bs = await getBaseStation();
-  if (bs?.stationStatus === "analyzing") return;
-  await saveBaseStation({ filtration: filtration || null });
 }
 
 export async function setVolumeToAnalyze(volumeL) {
@@ -133,12 +124,16 @@ export async function analyzeSample() {
   if (!bs) throw new Error("Base station state not found — ask an admin to reset HIVE.");
   if (bs.stationStatus === "analyzing") throw new Error("An analysis is already running.");
   if (!bs.selectedDroneId) throw new Error("Select a drone first.");
-  if (!bs.filtration) throw new Error("Choose a filtration option.");
   if (!bs.instrument) throw new Error("Choose an instrument.");
   if (bs.instrument === "Incubation" && !bs.reagent) throw new Error("Choose a reagent for incubation.");
 
   const volumeL = Number(bs.volumeToAnalyzeL);
-  if (!(volumeL > 0)) throw new Error("Enter a sample volume greater than 0.");
+  if (!(volumeL >= MIN_ANALYSIS_VOLUME_L)) {
+    throw new Error(`Enter a sample volume of at least ${MIN_ANALYSIS_VOLUME_L * 1000} mL.`);
+  }
+  if (bs.instrument === "FC" && volumeL > FC_MAX_VOLUME_L + DEPLETED_EPSILON) {
+    throw new Error(`Flow Cytometry (FC) is restricted to ${FC_MAX_VOLUME_L * 1000} mL samples.`);
+  }
 
   const drone = await getDroneSnapshot(GROUP, bs.selectedDroneId);
   if (!drone || drone.status !== "docked_to_base" || !drone.sample) {
@@ -149,13 +144,10 @@ export async function analyzeSample() {
   }
 
   const now = Date.now();
-  const durationSeconds =
-    scaledBaseStationSeconds(MISSION_CONFIG.BASE_STATION_INSTRUMENT_SECONDS) +
-    (bs.filtration !== "none" ? scaledBaseStationSeconds(MISSION_CONFIG.BASE_STATION_FILTRATION_SECONDS) : 0);
+  const durationSeconds = scaledBaseStationSeconds(MISSION_CONFIG.BASE_STATION_INSTRUMENT_SECONDS);
 
   const currentRun = {
     droneId: bs.selectedDroneId,
-    filtration: bs.filtration,
     volumeToAnalyzeL: volumeL,
     instrument: bs.instrument,
     reagent: bs.instrument === "Incubation" ? bs.reagent : null,
@@ -164,9 +156,8 @@ export async function analyzeSample() {
     endsAt: now + durationSeconds * 1000
   };
 
-  const filtrationLabel = FILTRATION_LABELS[bs.filtration] || bs.filtration;
   const message =
-    `Analyzing Sample: ${bs.instrument} on ${bs.selectedDroneId} — ${volumeL} L, ${filtrationLabel}` +
+    `Analyzing Sample: ${bs.instrument} on ${bs.selectedDroneId} — ${volumeL} L` +
     (currentRun.reagent ? `, ${currentRun.reagent}` : "");
 
   await saveBaseStation({
@@ -201,7 +192,6 @@ async function tick() {
         group: GROUP,
         droneId: run.droneId,
         volumeL: run.volumeToAnalyzeL,
-        filtration: run.filtration,
         originPosition: run.originPosition,
         ...(run.reagent ? { reagent: run.reagent } : {})
       })

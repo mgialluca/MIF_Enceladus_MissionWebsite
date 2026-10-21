@@ -338,7 +338,8 @@
             width: 100%; padding: 0.4rem; margin-top: 0.25rem; border-radius: 5px; border: none; box-sizing: border-box;
         }
         .bs-max-hint { font-size: 0.72rem; color: #7fa8c4; margin-top: 0.2rem; }
-        .bs-description { font-size: 0.78rem; color: #a8cbe0; margin-top: 0.9rem; }
+        .bs-notes-list { font-size: 0.8rem; color: #a8cbe0; margin: 0; padding-left: 1.2rem; }
+        .bs-notes-list li { margin-bottom: 0.4rem; }
 
         .instrument-btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
         .instrument-btn {
@@ -464,18 +465,11 @@
                 <p class="queue-count" id="bs-empty-msg">No drones currently docked at the base station.</p>
             </div>
 
-            <div class="panel bs-sub-panel" id="bs-filtration-panel">
-                <h2>Filtration Setup</h2>
-                <label for="bs-filtration-select">Filtration</label>
-                <select id="bs-filtration-select">
-                    <option value="">— choose —</option>
-                </select>
-
+            <div class="panel bs-sub-panel" id="bs-volume-panel">
+                <h2>Sample Volume</h2>
                 <label for="bs-volume-input">Sample volume to analyze (L)</label>
                 <input type="number" id="bs-volume-input" min="0" step="any">
                 <p class="bs-max-hint" id="bs-volume-max-hint"></p>
-
-                <p class="bs-description">Filtering a sample will isolate particles larger than or equal to the selected filter for downstream analysis.</p>
             </div>
 
             <div class="panel bs-sub-panel" id="bs-instrument-panel">
@@ -492,6 +486,11 @@
             <div class="panel bs-sub-panel">
                 <h2>Status of Base Station</h2>
                 <ul id="bs-status-log" class="bs-status-log"></ul>
+            </div>
+
+            <div class="panel bs-sub-panel">
+                <h2>Notes</h2>
+                <ul id="bs-notes-list" class="bs-notes-list"></ul>
             </div>
         </div>
 
@@ -515,7 +514,7 @@
         returnSample
       } from "../../js/games/hive-drone-explorer/drone-engine.js";
       import {
-        selectDrone, setFiltration, setVolumeToAnalyze, setInstrument, setReagent,
+        selectDrone, setVolumeToAnalyze, setInstrument, setReagent,
         analyzeSample, returnToOcean, catchUpBaseStation, listenToBaseStation
       } from "../../js/games/hive-drone-explorer/base-station-engine.js";
 
@@ -719,20 +718,6 @@
       }
 
       // ===================== Base station tab =====================
-      const FILTRATION_LABELS = {};
-      MISSION_CONFIG.FILTRATION_OPTIONS.forEach((f) => { FILTRATION_LABELS[f.id] = f.label; });
-
-      const bsFiltrationSelect = document.getElementById("bs-filtration-select");
-      MISSION_CONFIG.FILTRATION_OPTIONS.forEach((f) => {
-        const opt = document.createElement("option");
-        opt.value = f.id;
-        opt.textContent = f.label;
-        bsFiltrationSelect.appendChild(opt);
-      });
-      bsFiltrationSelect.addEventListener("change", () => {
-        setFiltration(bsFiltrationSelect.value).catch(console.error);
-      });
-
       const bsVolumeInput = document.getElementById("bs-volume-input");
       const bsVolumeMaxHint = document.getElementById("bs-volume-max-hint");
       bsVolumeInput.addEventListener("change", () => {
@@ -765,9 +750,17 @@
         setReagent(bsReagentSelect.value).catch(console.error);
       });
 
+      // Notes panel: static list, built once from config.
+      const bsNotesListEl = document.getElementById("bs-notes-list");
+      MISSION_CONFIG.BASE_STATION_NOTES.forEach((note) => {
+        const li = document.createElement("li");
+        li.textContent = note;
+        bsNotesListEl.appendChild(li);
+      });
+
       const bsDronesBody = document.getElementById("bs-drones-body");
       const bsEmptyMsg = document.getElementById("bs-empty-msg");
-      const bsFiltrationPanel = document.getElementById("bs-filtration-panel");
+      const bsVolumePanel = document.getElementById("bs-volume-panel");
       const bsInstrumentPanel = document.getElementById("bs-instrument-panel");
       const bsAnalyzeBtn = document.getElementById("bs-analyze-btn");
       const bsAnalyzeFeedback = document.getElementById("bs-analyze-feedback");
@@ -835,19 +828,23 @@
         const hasValidSelection = !!(selectedDrone && selectedDrone.status === "docked_to_base" && selectedDrone.sample);
 
         const panelsLocked = !hasValidSelection || analyzing;
-        bsFiltrationPanel.classList.toggle("disabled-panel", panelsLocked);
+        bsVolumePanel.classList.toggle("disabled-panel", panelsLocked);
         bsInstrumentPanel.classList.toggle("disabled-panel", panelsLocked);
-        bsFiltrationSelect.disabled = panelsLocked;
         bsVolumeInput.disabled = panelsLocked;
 
-        // --- Filtration / volume ---
-        bsFiltrationSelect.value = bs?.filtration || "";
+        // --- Volume ---
         if (document.activeElement !== bsVolumeInput) {
           bsVolumeInput.value = bs?.volumeToAnalyzeL ?? "";
         }
+        const isFC = bs?.instrument === "FC";
         if (hasValidSelection) {
-          bsVolumeInput.max = selectedDrone.sample.volumeL;
-          bsVolumeMaxHint.textContent = `Max: ${selectedDrone.sample.volumeL} L remaining in ${bs.selectedDroneId}'s sample.`;
+          const effectiveMax = isFC
+            ? Math.min(selectedDrone.sample.volumeL, MISSION_CONFIG.FC_MAX_VOLUME_L)
+            : selectedDrone.sample.volumeL;
+          bsVolumeInput.max = effectiveMax;
+          bsVolumeMaxHint.textContent = isFC
+            ? `FC is restricted to ${MISSION_CONFIG.FC_MAX_VOLUME_L * 1000} mL. (${selectedDrone.sample.volumeL} L remaining in ${bs.selectedDroneId}'s sample.)`
+            : `Max: ${selectedDrone.sample.volumeL} L remaining in ${bs.selectedDroneId}'s sample. Min: ${MISSION_CONFIG.MIN_ANALYSIS_VOLUME_L * 1000} mL.`;
         } else {
           bsVolumeInput.removeAttribute("max");
           bsVolumeMaxHint.textContent = "";
@@ -867,9 +864,12 @@
 
         // --- Analyze button gating ---
         const volumeL = Number(bs?.volumeToAnalyzeL);
-        const volumeOk = hasValidSelection && volumeL > 0 && volumeL <= selectedDrone.sample.volumeL + 0.001;
+        const volumeOk = hasValidSelection
+          && volumeL >= MISSION_CONFIG.MIN_ANALYSIS_VOLUME_L
+          && volumeL <= selectedDrone.sample.volumeL + 0.001
+          && (!isFC || volumeL <= MISSION_CONFIG.FC_MAX_VOLUME_L + 0.001);
         const reagentOk = bs?.instrument !== "Incubation" || !!bs?.reagent;
-        const canAnalyze = hasValidSelection && !!bs?.filtration && volumeOk && !!bs?.instrument && reagentOk && !analyzing;
+        const canAnalyze = hasValidSelection && volumeOk && !!bs?.instrument && reagentOk && !analyzing;
         bsAnalyzeBtn.disabled = !canAnalyze;
 
         // --- Status log: always visible, never greyed out ---

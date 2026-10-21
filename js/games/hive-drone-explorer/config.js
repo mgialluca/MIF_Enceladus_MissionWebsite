@@ -40,20 +40,23 @@ export const MISSION_CONFIG = {
   // Its own debug time scale, independent of DEBUG_FAST_MODE above — testing
   // wants "1 real minute = 10 seconds" specifically for this feature.
   BASE_STATION_INSTRUMENT_SECONDS: 60,
-  BASE_STATION_FILTRATION_SECONDS: 60, // additional, only if filtration !== "none"
   BASE_STATION_DEBUG_FAST_MODE: true,
   BASE_STATION_DEBUG_TIME_SCALE: 10 / 60,
 
-  FILTRATION_OPTIONS: [
-    { id: "none", label: "No Filtration" },
-    { id: "0.5um", label: "0.5 µm" },
-    { id: "1um", label: "1 µm" },
-    { id: "5um", label: "5 µm" },
-    { id: "10um", label: "10 µm" },
-    { id: "20um", label: "20 µm" }
-  ],
+  // Every sample is analyzed bulk now — there is no pre-filtration step.
+  // Minimum volume for ANY instrument; FC additionally has its own maximum
+  // (see FC_MAX_VOLUME_L) — since both are 0.001 L, a Flow Cytometer run is
+  // effectively pinned to exactly 1 mL.
+  MIN_ANALYSIS_VOLUME_L: 0.001,
+  FC_MAX_VOLUME_L: 0.001,
 
   INSTRUMENTS: ["CE-LIF", "CE-C4D", "GCMS", "FC", "Microscope", "Incubation"],
+
+  // Static informational notes shown on the base-station tab — add more here
+  // as they come up; each becomes one bullet.
+  BASE_STATION_NOTES: [
+    "Flow Cytometry (FC) is restricted to only 1 mL samples."
+  ],
 
   REAGENTS: ["14C-formate", "14C-acetate", "14C-D-glycine", "14C-L-glycine"],
 

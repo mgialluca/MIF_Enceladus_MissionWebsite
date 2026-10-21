@@ -162,15 +162,22 @@ def _analysis_sample_number(drone_id):
     return update_in_transaction(transaction)
 
 
-def _generate_analysis_file(instrument, drone_id, volume_l, filtration, origin, reagent=None):
-    """Placeholder data generator shared by all 6 instrument functions. Just
-    echoes the received inputs — replace with the real per-instrument science
-    model later."""
+# Every HIVE sample is analyzed bulk now — no pre-filtration step. Minimum
+# volume for ANY instrument; FC additionally has its own maximum. Must match
+# MIN_ANALYSIS_VOLUME_L / FC_MAX_VOLUME_L in
+# js/games/hive-drone-explorer/config.js by hand.
+MIN_ANALYSIS_VOLUME_L = 0.001
+FC_MAX_VOLUME_L = 0.001
+
+
+def _generate_analysis_file(instrument, drone_id, volume_l, origin, reagent=None):
+    """Placeholder data generator shared by the 5 non-FC instrument functions.
+    Just echoes the received inputs — replace with the real per-instrument
+    science model later."""
     lines = [
         f"Instrument: {instrument}",
         f"Drone: {drone_id}",
         f"Sample volume analyzed (L): {volume_l}",
-        f"Filtration: {filtration}",
         f"Origin position (m): x={origin.get('x')}, y={origin.get('y')}, z={origin.get('z')}",
     ]
     if reagent is not None:
@@ -190,7 +197,6 @@ def _handle_analysis_request(req, instrument, requires_reagent=False):
 
     drone_id = data.get("droneId")
     volume_l = data.get("volumeL")
-    filtration = data.get("filtration")
     origin = data.get("originPosition") or {}
     reagent = data.get("reagent")
 
@@ -198,6 +204,10 @@ def _handle_analysis_request(req, instrument, requires_reagent=False):
         return https_fn.Response("Missing droneId", status=400)
     if volume_l is None:
         return https_fn.Response("Missing volumeL", status=400)
+    if volume_l < MIN_ANALYSIS_VOLUME_L - 1e-9:
+        return https_fn.Response(
+            f"Sample volume must be at least {MIN_ANALYSIS_VOLUME_L * 1000:g} mL.", status=400
+        )
     if requires_reagent and not reagent:
         return https_fn.Response("Missing reagent for incubation", status=400)
 
@@ -205,7 +215,7 @@ def _handle_analysis_request(req, instrument, requires_reagent=False):
     instrument_stem = instrument.replace("-", "").replace(" ", "")
     filename = f"{drone_id}_Analysis{sample_number}_{instrument_stem}.txt"
 
-    content = _generate_analysis_file(instrument, drone_id, volume_l, filtration, origin, reagent)
+    content = _generate_analysis_file(instrument, drone_id, volume_l, origin, reagent)
     file_id = upload_to_drive(
         GROUP_DRIVE_FOLDERS["HIVE"], filename, content, mimetype="text/plain"
     )
@@ -220,7 +230,6 @@ def _handle_analysis_request(req, instrument, requires_reagent=False):
                 "instrument": instrument,
                 "droneId": drone_id,
                 "volumeL": volume_l,
-                "filtration": filtration,
                 "originPosition": origin,
                 "reagent": reagent,
             },
@@ -247,7 +256,66 @@ def hive_analyze_sample_gcms(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
 def hive_analyze_sample_fc(req: https_fn.Request) -> https_fn.Response:
-    return _handle_analysis_request(req, "FC")
+    """HIVE's Flow Cytometer — the exact same real per-event science model
+    WhiteWhale's whale_flow_cytometer_sample uses (sort_particles_flow_
+    cytometer.py), just at the drone's own sample origin (x, y, z) instead of
+    a fixed station location. Restricted to <= FC_MAX_VOLUME_L (1 mL) —
+    enforced client-side too, but re-checked here regardless."""
+    data = req.get_json(silent=True)
+    if not data:
+        return https_fn.Response("Missing JSON body", status=400)
+
+    group = data.get("group", "HIVE")
+    if group != "HIVE":
+        return https_fn.Response(f"Unknown group for flow cytometry: {group}", status=400)
+
+    drone_id = data.get("droneId")
+    volume_l = data.get("volumeL")
+    origin = data.get("originPosition") or {}
+
+    if not drone_id:
+        return https_fn.Response("Missing droneId", status=400)
+    if volume_l is None:
+        return https_fn.Response("Missing volumeL", status=400)
+    if volume_l < MIN_ANALYSIS_VOLUME_L - 1e-9:
+        return https_fn.Response(
+            f"Sample volume must be at least {MIN_ANALYSIS_VOLUME_L * 1000:g} mL.", status=400
+        )
+    if volume_l > FC_MAX_VOLUME_L + 1e-9:
+        return https_fn.Response(
+            f"Flow Cytometry (FC) is restricted to {FC_MAX_VOLUME_L * 1000:g} mL samples.", status=400
+        )
+
+    x_m = origin.get("x", 0)
+    y_m = origin.get("y", 0)
+    z_m = origin.get("z", 0)
+    volume_ml = volume_l * 1000
+
+    sample_number = _analysis_sample_number(drone_id)
+    filename = f"{drone_id}_Analysis{sample_number}_FC.csv"
+
+    df = flowcyt.generate_parcel_data(x_m, y_m, z_m, sample_volume_ml=volume_ml)
+    visible = flowcyt.player_visible_csv(df)
+
+    header = _build_file_header(
+        mission="HIVE", instrument="Flow Cytometer",
+        x=x_m, y=y_m, z=z_m, volume_ml=volume_ml, sample_type="bulk"
+    )
+    content = header + visible.to_csv(index=False)
+    file_id = upload_to_drive(
+        GROUP_DRIVE_FOLDERS["HIVE"], filename, content, mimetype="text/csv"
+    )
+
+    return https_fn.Response(
+        json.dumps({
+            "status": "ok",
+            "filename": filename,
+            "driveFileId": file_id,
+            "sampleNumber": sample_number,
+        }),
+        status=200,
+        content_type="application/json",
+    )
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
@@ -360,8 +428,9 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
 # own deployable function sharing one request handler, mirroring HIVE's
 # base-station setup.
 #
-# WhiteWhale's station x,y isn't chosen by players yet (see config comments
-# elsewhere) — every call here uses the (0, 0) placeholder until that exists.
+# WhiteWhale's station x,y is the tether's own confirmed drop location
+# (tetherX/tetherY, set on the "Seafloor Scan" tab) — every call here reads
+# it from the request body (xM/yM), supplied by the client.
 # ======================================================================
 
 def _next_whale_filtration_number(station_id):
@@ -658,7 +727,6 @@ def _initial_base_station_state():
     js/games/hive-drone-explorer/base-station-engine.js."""
     return {
         "selectedDroneId": None,
-        "filtration": None,
         "volumeToAnalyzeL": None,
         "instrument": None,
         "reagent": None,
