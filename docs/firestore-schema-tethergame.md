@@ -12,10 +12,10 @@ each instrument analysis) is prefixed with the same `#`-comment metadata
 block: Mission, Instrument, X/Y/Z (m), Water Volume (mL), Sample Type
 ("bulk" | "size bin" | "dissolved"), and Method File (always the literal
 string "method file" for now). See `_build_file_header()` in `functions/main.py`.
-WhiteWhale's station x,y isn't chosen by players yet, so every call uses an
-(0, 0) placeholder — which happens to sit inside vent field 5's influence
-(see `sort_particles_flow_cytometer.py`'s `VENT_FIELDS`), so a deep enough
-station already reads as Hydrothermal Hotspot today.
+WhiteWhale's station x,y is the tether's own confirmed drop location
+(`tetherX`/`tetherY` on the tether state doc below) — every Cloud Function
+call reads it from there. It's chosen once, before anything else in this
+game, on the "Seafloor Scan" tab (see that section below).
 
 ## Path: groups/WhiteWhale/tether/state
 
@@ -23,10 +23,16 @@ Single document holding all shared game state. Written by the client engine
 (`tether-engine.js`) and initialized by `reset_group` / first `deployTether`.
 
 Fields:
+- scanStartedAt: <epoch ms> | null    // Seafloor Scan reveal timer start — see below
+- tetherX: <meters> | null            // confirmed on the Seafloor Scan tab; null until then
+- tetherY: <meters> | null
+- tetherLocationConfirmedAt: <epoch ms> | null   // set once; irreversible short of a reset
 - tetherStatus: "not_deployed" | "deploying" | "deployed"
 - tetherDeployStartedAt: <epoch ms> | null
 - tetherDeployedAt: <epoch ms> | null
-- oceanDepthM: null  → 50000 once the tether reaches the floor
+- oceanDepthM: null  → real terrain depth at (tetherX, tetherY) once the tether
+    reaches the floor (depthAt() in js/games/shared/seafloor-model.js) — NOT a
+    flat 50000; varies with the chosen drop location
 - depthsLocked: false | true          // true after "Set Station Depths" (irreversible)
 - depthsSetAt: <epoch ms> | null
 - stations: [ 4 × {
@@ -72,6 +78,29 @@ Status flow per station:
     → (deploy finishes)           → standby
     → (Collect Sample pressed)    → collecting_data   (SAMPLE_COLLECT_SECONDS)
     → (collection finishes)       → standby   + triggers whale_collect_basic_data_sample upload
+
+### Seafloor Scan tab (first page tab, before Basic Data Collection)
+
+Every image in `assets/seafloor/` (including `scan.webp`) shares the same
+terrain and vent catalogue as the HIVE drone's hazard model, so a click here
+lands on the exact same (x, y) convention `depthAt()`/`hazardAt()` use.
+
+- `scanStartedAt` is set the moment an admin unlocks the `deploy-tether`
+  page (`startSeafloorScan()`, called from both `admin.html`'s unlock click
+  — same pattern as `startOrbiterTimeline` — and defensively on every
+  `catchUpTether()`, so a mid-session "Reset WhiteWhale" restarts the scan
+  the next time anyone has the page open, with no separate unlock event to
+  do it). Idempotent: a no-op once already set.
+- The page renders `scan.webp` (the real multibeam-style render of the
+  website's own seafloor terrain — see `enceladus_MIF/seafloor/
+  plot_seafloor_multibeam.py`) behind a mask that shrinks left-to-right over
+  `SCAN_DURATION_SECONDS`, via `scanProgress(tether, now)`. The player can
+  click anywhere on the image at any time, even mid-reveal, to place a
+  (non-persisted) red X; `confirmTetherLocation(x, y)` is the only thing
+  that actually writes `tetherX`/`tetherY`/`tetherLocationConfirmedAt`, and
+  only once — a second call throws.
+- The "Basic Data Collection & Site Selection" tab (and `deployTether()`
+  itself) stay disabled/rejected until `tetherLocationConfirmedAt` is set.
 
 ## Path: groups/WhiteWhale/stationSamples/{stationId}
 

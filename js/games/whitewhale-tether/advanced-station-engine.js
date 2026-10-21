@@ -32,13 +32,6 @@ const SIZE_BIN_LABELS = TETHER_CONFIG.SIZE_BINS.reduce((map, b) => {
   return map;
 }, {});
 
-// WhiteWhale's station x,y isn't chosen by players yet — every Cloud
-// Function call uses this placeholder until that feature exists. (0,0) also
-// happens to sit inside a real vent field's influence, so deep stations
-// already read as Hydrothermal Hotspot today — see sort_particles_flow_cytometer.py.
-const PLACEHOLDER_X_M = 0;
-const PLACEHOLDER_Y_M = 0;
-
 function advancedRef() {
   return doc(db, "groups", GROUP, "advancedStation", "state");
 }
@@ -291,17 +284,17 @@ async function tick() {
   const station = findStation(t, run.stationId);
 
   if (run.type === "flow_cytometer") {
-    await finishFlowCytometer(adv, run, station);
+    await finishFlowCytometer(adv, run, station, t);
     return;
   }
   if (run.type === "facs_sorting") {
-    await finishFacsSorting(adv, run, station);
+    await finishFacsSorting(adv, run, station, t);
     return;
   }
-  await finishAnalysis(adv, run, station);
+  await finishAnalysis(adv, run, station, t);
 }
 
-async function finishFlowCytometer(adv, run, station) {
+async function finishFlowCytometer(adv, run, station, t) {
   let log = adv.statusLog || [];
   let filtrationNumber = null;
 
@@ -314,8 +307,8 @@ async function finishFlowCytometer(adv, run, station) {
         stationId: run.stationId,
         stationLabel: station?.label,
         depthM: station?.assignedDepthM,
-        xM: PLACEHOLDER_X_M,
-        yM: PLACEHOLDER_Y_M
+        xM: t?.tetherX,
+        yM: t?.tetherY
       })
     });
     const rawResponse = await response.text();
@@ -352,7 +345,7 @@ async function finishFlowCytometer(adv, run, station) {
   scheduleTick(now + facsDurationSeconds * 1000);
 }
 
-async function finishFacsSorting(adv, run, station) {
+async function finishFacsSorting(adv, run, station, t) {
   let log = adv.statusLog || [];
   let binTotals = null;
 
@@ -367,8 +360,8 @@ async function finishFacsSorting(adv, run, station) {
         filtrationNumber: adv.currentFiltrationNumber,
         totalVolumeMl: adv.requestedVolumeL * 1000,
         depthM: station?.assignedDepthM,
-        xM: PLACEHOLDER_X_M,
-        yM: PLACEHOLDER_Y_M
+        xM: t?.tetherX,
+        yM: t?.tetherY
       })
     });
     const rawResponse = await response.text();
@@ -401,7 +394,7 @@ async function finishFacsSorting(adv, run, station) {
   });
 }
 
-async function finishAnalysis(adv, run, station) {
+async function finishAnalysis(adv, run, station, t) {
   let log = adv.statusLog || [];
   try {
     const url = TETHER_CONFIG.INSTRUMENT_FUNCTION_URLS[run.instrument];
@@ -416,8 +409,8 @@ async function finishAnalysis(adv, run, station) {
         sizeBins: run.sizeBins,
         volumeL: run.volumeL,
         depthM: station?.assignedDepthM,
-        xM: PLACEHOLDER_X_M,
-        yM: PLACEHOLDER_Y_M,
+        xM: t?.tetherX,
+        yM: t?.tetherY,
         ...(run.reagent ? { reagent: run.reagent } : {})
       })
     });

@@ -43,6 +43,58 @@
         .page-tab-content { display: none; }
         .page-tab-content.active { display: block; }
 
+        /* ===== Seafloor Scan tab ===== */
+        .scan-wrap { max-width: 1200px; margin: 0 auto; padding: 1.5rem; text-align: center; }
+        .scan-headline { font-size: 1.3rem; color: #a8cbe0; margin: 0 0 1.25rem; }
+
+        .scan-frame {
+            position: relative;
+            display: inline-block;
+            margin: 0 auto;
+            padding: 0 0 2.3rem 2.6rem; /* room for axis ticks + axis titles */
+        }
+        .scan-image-wrap {
+            position: relative;
+            width: 460px; max-width: 100%;
+            aspect-ratio: 1 / 1;
+            border: 1px solid #52616e;
+            cursor: crosshair;
+            user-select: none;
+        }
+        .scan-image-wrap.locked { cursor: default; }
+        /* Only the image + reveal mask clip; the X marker and axis ticks are
+           direct children of .scan-image-wrap so they can sit exactly on its
+           0-100% box (ticks even hang slightly outside it) without being cut
+           off by the clip. */
+        .scan-image-clip { position: absolute; inset: 0; overflow: hidden; }
+        .scan-image-wrap img {
+            width: 100%; height: 100%; display: block; object-fit: cover; user-select: none; pointer-events: none;
+        }
+        /* Covers the not-yet-revealed portion on the right; shrinks via `left`
+           as the scan progresses, so the underlying image appears to sweep
+           into view left-to-right rather than fading or popping in. */
+        .scan-mask { position: absolute; top: 0; bottom: 0; right: 0; left: 0; background: #12293d; }
+
+        .scan-x {
+            position: absolute; transform: translate(-50%, -50%);
+            font-size: 2.1rem; font-weight: bold; color: #ff4d4d;
+            text-shadow: 0 0 6px rgba(0,0,0,0.8); pointer-events: none; line-height: 1;
+        }
+        .scan-tick {
+            position: absolute; font-size: 0.68rem; color: #c9d6df; font-family: monospace;
+            white-space: nowrap;
+        }
+        .scan-axis-title {
+            position: absolute; font-size: 0.8rem; color: #a8cbe0;
+        }
+        .scan-axis-title.x-title { bottom: -0.15rem; left: 50%; transform: translateX(-50%); }
+        .scan-axis-title.y-title {
+            left: -2.3rem; top: 50%; transform: translateY(-50%) rotate(-90deg);
+        }
+
+        .scan-confirm-row { margin-top: 1.25rem; }
+        .scan-coords { font-size: 0.82rem; color: #cfeaff; font-family: monospace; margin-top: 0.5rem; min-height: 1.1rem; }
+
         .ops-layout {
             display: flex;
             flex-wrap: wrap;
@@ -212,12 +264,38 @@
 <body>
 
     <div class="page-tabs">
-        <button class="page-tab-btn active" data-page-tab="basic" id="page-tab-btn-basic">Basic Data Collection &amp; Site Selection</button>
+        <button class="page-tab-btn active" data-page-tab="scan" id="page-tab-btn-scan">Seafloor Scan</button>
+        <button class="page-tab-btn" data-page-tab="basic" id="page-tab-btn-basic" disabled>Basic Data Collection &amp; Site Selection</button>
         <button class="page-tab-btn" data-page-tab="advanced" id="page-tab-btn-advanced" disabled>Advanced Data Collection</button>
     </div>
 
+    <!-- ===================== Seafloor Scan tab ===================== -->
+    <div id="page-tab-scan" class="page-tab-content active">
+        <div class="scan-wrap">
+            <p id="scan-headline" class="scan-headline">Scanning Seafloor</p>
+
+            <div class="scan-frame">
+                <div id="scan-image-wrap" class="scan-image-wrap">
+                    <div class="scan-image-clip">
+                        <img src="../../assets/seafloor/scan.webp" alt="Seafloor multibeam scan">
+                        <div id="scan-mask" class="scan-mask"></div>
+                    </div>
+                    <div id="scan-x" class="scan-x" hidden>✕</div>
+                    <div id="scan-ticks"><!-- tick labels populated by JS --></div>
+                </div>
+                <div class="scan-axis-title x-title">x (km)</div>
+                <div class="scan-axis-title y-title">y (km)</div>
+            </div>
+
+            <div class="scan-confirm-row">
+                <button id="scan-confirm-btn" class="big-btn" disabled>Confirm Tether Location</button>
+                <p id="scan-coords" class="scan-coords"></p>
+            </div>
+        </div>
+    </div>
+
     <!-- ===================== Basic Data Collection & Site Selection tab ===================== -->
-    <div id="page-tab-basic" class="page-tab-content active">
+    <div id="page-tab-basic" class="page-tab-content">
         <div class="ops-layout">
             <div class="panel control-panel">
                 <h1>WhiteWhale Tether Operations</h1>
@@ -323,7 +401,8 @@
       import {
         deployTether, setStationDepths, collectSample,
         catchUpTether, listenToTether,
-        initialStations, tetherVisualFraction, stationVisualDepthM
+        initialStations, tetherVisualFraction, stationVisualDepthM,
+        scanProgress, confirmTetherLocation, DOMAIN_OFFSET_M
       } from "../../js/games/whitewhale-tether/tether-engine.js";
       import {
         beginFiltration, selectSizeBin, selectInstrument, selectReagent,
@@ -356,21 +435,23 @@
       let advanced = null;      // latest groups/WhiteWhale/advancedStation/state snapshot
 
       // ===================== Page-level tabs =====================
-      const pageTabBtnBasic = document.getElementById("page-tab-btn-basic");
-      const pageTabBtnAdvanced = document.getElementById("page-tab-btn-advanced");
-      const pageTabBasic = document.getElementById("page-tab-basic");
-      const pageTabAdvanced = document.getElementById("page-tab-advanced");
+      const PAGE_TABS = ["scan", "basic", "advanced"];
+      const pageTabBtn = {}, pageTabContent = {};
+      PAGE_TABS.forEach((tab) => {
+        pageTabBtn[tab] = document.getElementById(`page-tab-btn-${tab}`);
+        pageTabContent[tab] = document.getElementById(`page-tab-${tab}`);
+      });
 
       function showPageTab(tab) {
-        if (tab === "advanced" && pageTabBtnAdvanced.disabled) return;
-        const isBasic = tab === "basic";
-        pageTabBtnBasic.classList.toggle("active", isBasic);
-        pageTabBtnAdvanced.classList.toggle("active", !isBasic);
-        pageTabBasic.classList.toggle("active", isBasic);
-        pageTabAdvanced.classList.toggle("active", !isBasic);
+        if (pageTabBtn[tab].disabled) return;
+        PAGE_TABS.forEach((t) => {
+          pageTabBtn[t].classList.toggle("active", t === tab);
+          pageTabContent[t].classList.toggle("active", t === tab);
+        });
       }
-      pageTabBtnBasic.addEventListener("click", () => showPageTab("basic"));
-      pageTabBtnAdvanced.addEventListener("click", () => showPageTab("advanced"));
+      PAGE_TABS.forEach((tab) => {
+        pageTabBtn[tab].addEventListener("click", () => showPageTab(tab));
+      });
 
       // ===================== Basic tab: build station rows once ==================
       const tbody = document.getElementById("station-table-body");
@@ -498,7 +579,12 @@
 
         // Advanced tab availability: unavailable until ≥1 station is fully deployed.
         const anyDeployed = stations.some((s) => DEPLOYED_STATUSES.includes(s.status));
-        pageTabBtnAdvanced.disabled = !anyDeployed;
+        pageTabBtn.advanced.disabled = !anyDeployed;
+      }
+
+      // Basic tab availability: unavailable until the tether's x,y is confirmed.
+      function renderScanTabAvailability() {
+        pageTabBtn.basic.disabled = !tether?.tetherLocationConfirmedAt;
       }
 
       // ===================== Advanced tab =====================
@@ -850,8 +936,108 @@
         ctx.closePath();
       }
 
+      // ===================== Seafloor Scan tab =====================
+      const scanHeadlineEl = document.getElementById("scan-headline");
+      const scanImageWrapEl = document.getElementById("scan-image-wrap");
+      const scanMaskEl = document.getElementById("scan-mask");
+      const scanXEl = document.getElementById("scan-x");
+      const scanConfirmBtn = document.getElementById("scan-confirm-btn");
+      const scanCoordsEl = document.getElementById("scan-coords");
+      const scanTicksEl = document.getElementById("scan-ticks");
+      const DOMAIN_SPAN_M = DOMAIN_OFFSET_M * 2; // 10000 m, full x/y extent
+
+      // The player's pending (not yet confirmed) click — local to this page
+      // until "Confirm Tether Location" locks it in, at which point it's
+      // written to Firestore and becomes the real x,y for every future
+      // sample (unlike Orbiter's purely cosmetic landing-site X).
+      let placedXY = null; // { xPct, yPct, xM, yM }
+
+      // Static axis ticks, -5..5 km every 1 km — matches the Python plot's
+      // own linspace(-5, 5, 11). Built once; position is a simple % of
+      // scan-image-wrap's own box since ticks are direct children of it.
+      for (let km = -5; km <= 5; km++) {
+        const xPct = ((km + 5) / 10) * 100;
+        const yPct = ((5 - km) / 10) * 100; // y increases upward, pixels increase downward
+
+        const xTick = document.createElement("div");
+        xTick.className = "scan-tick";
+        xTick.textContent = km;
+        xTick.style.bottom = "-1.2rem";
+        xTick.style.left = `${xPct}%`;
+        xTick.style.transform = "translateX(-50%)";
+        scanTicksEl.appendChild(xTick);
+
+        const yTick = document.createElement("div");
+        yTick.className = "scan-tick";
+        yTick.textContent = km;
+        yTick.style.left = "-1.6rem";
+        yTick.style.top = `${yPct}%`;
+        yTick.style.transform = "translateY(-50%)";
+        scanTicksEl.appendChild(yTick);
+      }
+
+      function placeScanX(xPct, yPct) {
+        scanXEl.hidden = false;
+        scanXEl.style.left = `${xPct}%`;
+        scanXEl.style.top = `${yPct}%`;
+      }
+
+      function renderScanTab() {
+        const confirmed = tether?.tetherLocationConfirmedAt != null;
+        const progress = scanProgress(tether);
+
+        scanHeadlineEl.textContent = progress >= 1 ? "Seafloor Scan Complete" : "Scanning Seafloor";
+        scanMaskEl.style.left = `${progress * 100}%`;
+
+        scanImageWrapEl.classList.toggle("locked", confirmed);
+
+        if (confirmed) {
+          const xPct = ((tether.tetherX + DOMAIN_OFFSET_M) / DOMAIN_SPAN_M) * 100;
+          const yPct = ((DOMAIN_OFFSET_M - tether.tetherY) / DOMAIN_SPAN_M) * 100;
+          placeScanX(xPct, yPct);
+          scanConfirmBtn.disabled = true;
+          scanConfirmBtn.textContent = "Tether Location Confirmed";
+          scanCoordsEl.textContent = `Confirmed drop location: x = ${Math.round(tether.tetherX)} m, y = ${Math.round(tether.tetherY)} m`;
+        } else if (placedXY) {
+          placeScanX(placedXY.xPct, placedXY.yPct);
+          scanConfirmBtn.disabled = false;
+          scanConfirmBtn.textContent = "Confirm Tether Location";
+          scanCoordsEl.textContent = `Selected: x = ${Math.round(placedXY.xM)} m, y = ${Math.round(placedXY.yM)} m`;
+        } else {
+          scanXEl.hidden = true;
+          scanConfirmBtn.disabled = true;
+          scanConfirmBtn.textContent = "Confirm Tether Location";
+          scanCoordsEl.textContent = "";
+        }
+      }
+
+      scanImageWrapEl.addEventListener("click", (e) => {
+        if (tether?.tetherLocationConfirmedAt != null) return;
+        const r = scanImageWrapEl.getBoundingClientRect();
+        const xPct = Math.min(Math.max(((e.clientX - r.left) / r.width) * 100, 0), 100);
+        const yPct = Math.min(Math.max(((e.clientY - r.top) / r.height) * 100, 0), 100);
+        placedXY = {
+          xPct, yPct,
+          xM: -DOMAIN_OFFSET_M + (xPct / 100) * DOMAIN_SPAN_M,
+          yM: DOMAIN_OFFSET_M - (yPct / 100) * DOMAIN_SPAN_M
+        };
+        renderScanTab();
+      });
+
+      scanConfirmBtn.addEventListener("click", async () => {
+        if (!placedXY) return;
+        scanConfirmBtn.disabled = true;
+        try {
+          await confirmTetherLocation(placedXY.xM, placedXY.yM);
+        } catch (err) {
+          scanCoordsEl.textContent = err.message;
+          scanConfirmBtn.disabled = !placedXY;
+        }
+      });
+
       function frameLoop() {
         draw();
+        renderScanTab();
         requestAnimationFrame(frameLoop);
       }
       requestAnimationFrame(frameLoop);
@@ -860,6 +1046,7 @@
       listenToTether((data) => {
         tether = data;
         checkForNewBreaks(tether?.stations || []);
+        renderScanTabAvailability();
         renderBasicTab();
         renderAdvancedTab();
       });
@@ -872,6 +1059,7 @@
       });
       catchUpAdvancedStation().catch(console.error);
 
+      renderScanTabAvailability();
       renderBasicTab();
       renderAdvancedTab();
     </script>

@@ -7,10 +7,18 @@
 
 export const TETHER_CONFIG = {
   GROUP: "WhiteWhale",
+  TETHER_GAME_ID: "deploy-tether",
 
   // --- True ocean depth (same as HIVE's TRUE_OCEAN_DEPTH_KM = 50) ---
   // Hidden from the player until the tether finishes deploying.
   OCEAN_DEPTH_M: 50000,
+
+  // --- Seafloor scan (first tab, before any station work) ---
+  // Starts the moment an admin unlocks this page (see admin.html), same
+  // pattern as ORBITER_CONFIG. Left-to-right reveal of assets/seafloor/
+  // scan.webp; the player can click to place the tether's x,y at any time,
+  // even mid-reveal. real value TBD — 20s is a placeholder for now.
+  SCAN_DURATION_SECONDS: 20,
 
   // --- Fleet ---
   STATION_COUNT: 4,

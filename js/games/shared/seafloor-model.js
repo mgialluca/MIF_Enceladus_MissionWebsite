@@ -22,8 +22,13 @@
 
 const DATA_BASE = new URL("../../../assets/seafloor/", import.meta.url);
 const DOMAIN_M = 10000;
-const DOMAIN_OFFSET_M = 5000;
 const FINE_FIELD_COUNT = 7;
+
+// Website x,y run -5000..+5000 m, centered on the base station — half the
+// domain each way. Exported so every other place that needs this same
+// convention (e.g. mapping a click on the seafloor-scan image to real
+// coordinates) shares one source instead of re-deriving it.
+export const DOMAIN_OFFSET_M = 5000;
 
 export const BASE_DEPTH_M = 50000;
 

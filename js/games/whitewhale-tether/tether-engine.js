@@ -18,14 +18,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 import { TETHER_CONFIG, stationTravelSeconds } from "./config.js";
-import { loadSeafloor, depthAt } from "../shared/seafloor-model.js";
+import { loadSeafloor, depthAt, DOMAIN_OFFSET_M } from "../shared/seafloor-model.js";
 
-// Tether x,y — fixed for now (see docs/firestore-schema-tethergame.md).
-const TETHER_X_M = 0;
-const TETHER_Y_M = 0;
+export { DOMAIN_OFFSET_M };
 
 const {
-  GROUP, OCEAN_DEPTH_M, STATION_COUNT,
+  GROUP, OCEAN_DEPTH_M, STATION_COUNT, SCAN_DURATION_SECONDS,
   TETHER_DEPLOY_SECONDS, STATION_DEPLOYING_SECONDS, SAMPLE_COLLECT_SECONDS,
   WHALE_COLLECT_BASIC_DATA_SAMPLE_URL
 } = TETHER_CONFIG;
@@ -65,6 +63,10 @@ export function initialStations() {
 
 export function initialTetherState() {
   return {
+    scanStartedAt: null,
+    tetherX: null,
+    tetherY: null,
+    tetherLocationConfirmedAt: null,
     tetherStatus: "not_deployed",
     tetherDeployStartedAt: null,
     tetherDeployedAt: null,
@@ -128,7 +130,7 @@ async function tick() {
       await loadSeafloor();
       patch.tetherStatus = "deployed";
       patch.tetherDeployedAt = doneAt;
-      patch.oceanDepthM = Math.round(depthAt(TETHER_X_M, TETHER_Y_M));
+      patch.oceanDepthM = Math.round(depthAt(t.tetherX, t.tetherY));
       changed = true;
     }
   }
@@ -160,9 +162,55 @@ async function tick() {
   if (changed) await saveTether(patch);
 
   // Fire the data-file upload(s) for any collection that just finished.
-  for (const u of uploads) await triggerStationCollection(u);
+  for (const u of uploads) await triggerStationCollection(u, t.tetherX, t.tetherY);
 
   await reschedule();
+}
+
+// ===================== Seafloor scan + tether location =====================
+
+/**
+ * Starts the seafloor-scan reveal timer, if it hasn't started already.
+ * Called both explicitly (admin.html, the moment "Deploy Tether" is
+ * unlocked — see startOrbiterTimeline's equivalent role for Orbiter) and
+ * defensively on every catchUpTether() call, so a mid-session "Reset
+ * WhiteWhale" (which wipes scanStartedAt but leaves the page unlocked, with
+ * no separate unlock event to re-trigger this) still restarts the scan the
+ * next time anyone has the page open. Idempotent either way.
+ */
+export async function startSeafloorScan() {
+  const t = await getTether();
+  if (t?.scanStartedAt != null) return;
+  const patch = t ? {} : initialTetherState();
+  patch.scanStartedAt = Date.now();
+  await saveTether(patch);
+}
+
+/** Reveal fraction (0..1) of the seafloor scan image at `nowMs`. */
+export function scanProgress(t, nowMs = Date.now()) {
+  if (!t?.scanStartedAt) return 0;
+  return Math.min(Math.max((nowMs - t.scanStartedAt) / (SCAN_DURATION_SECONDS * 1000), 0), 1);
+}
+
+/**
+ * Locks in the tether's x,y drop location. One-time — once confirmed, this
+ * can never be changed (short of an admin "Reset WhiteWhale"). Everything
+ * downstream (ocean-depth reveal, every Flow Cytometer/FACS sample) reads
+ * this same (x, y).
+ */
+export async function confirmTetherLocation(x, y) {
+  const t = await getTether();
+  if (t?.tetherLocationConfirmedAt) {
+    throw new Error("Tether location is already confirmed.");
+  }
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error("Click a point on the seafloor scan first.");
+  }
+  const patch = t ? {} : initialTetherState();
+  patch.tetherX = x;
+  patch.tetherY = y;
+  patch.tetherLocationConfirmedAt = Date.now();
+  await saveTether(patch);
 }
 
 // ===================== Player actions =====================
@@ -172,7 +220,10 @@ async function tick() {
  */
 export async function deployTether() {
   const t = await getTether();
-  if (t && t.tetherStatus !== "not_deployed") return;
+  if (!t?.tetherLocationConfirmedAt) {
+    throw new Error("Select and confirm the tether's drop location first.");
+  }
+  if (t.tetherStatus !== "not_deployed") return;
 
   const now = Date.now();
   const patch = t ? {} : initialTetherState();
@@ -263,7 +314,7 @@ export async function collectSample(stationId) {
  * data file. Failures are logged and recorded on the station, not thrown —
  * a missed upload shouldn't strand the station.
  */
-async function triggerStationCollection(station) {
+async function triggerStationCollection(station, xM, yM) {
   let rawResponse = "";
   try {
     const response = await fetch(WHALE_COLLECT_BASIC_DATA_SAMPLE_URL, {
@@ -273,7 +324,8 @@ async function triggerStationCollection(station) {
         group: GROUP,
         stationId: station.id,
         stationLabel: station.label,
-        depthM: station.assignedDepthM
+        depthM: station.assignedDepthM,
+        xM, yM
       })
     });
     rawResponse = await response.text();
@@ -319,6 +371,8 @@ async function patchStation(stationId, fields) {
  * resolved, then schedules the next pending one.
  */
 export async function catchUpTether() {
+  await startSeafloorScan();
+
   const t = await getTether();
   if (!t) return;
 

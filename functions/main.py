@@ -318,6 +318,8 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
     station_id = data.get("stationId")
     station_label = data.get("stationLabel") or station_id
     depth_m = data.get("depthM")
+    x_m = data.get("xM", 0)
+    y_m = data.get("yM", 0)
 
     if group not in GROUP_DRIVE_FOLDERS:
         return https_fn.Response(f"Unknown group: {group}", status=400)
@@ -329,7 +331,7 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
 
     header = _build_file_header(
         mission="White Whale", instrument="Basic Water Sample",
-        x=0, y=0, z=depth_m, volume_ml="N/A", sample_type="bulk"
+        x=x_m, y=y_m, z=depth_m, volume_ml="N/A", sample_type="bulk"
     )
     content = header + generate_placeholder_station_file(station_label, sample_number, depth_m)
     file_id = upload_to_drive(
@@ -738,6 +740,10 @@ def _reset_whitewhale(group_ref):
     delete_collection(group_ref.collection("filtrationSamples"))
 
     group_ref.collection("tether").document("state").set({
+        "scanStartedAt": None,
+        "tetherX": None,
+        "tetherY": None,
+        "tetherLocationConfirmedAt": None,
         "tetherStatus": "not_deployed",
         "tetherDeployStartedAt": None,
         "tetherDeployedAt": None,

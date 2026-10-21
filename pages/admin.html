@@ -38,11 +38,13 @@
     <script type="module">
       import { GAMES_CONFIG } from "../js/games-config.js";
       import { listenToUnlocks, unlockGame, relockGame } from "../js/mission-data.js";
-      import { listenToTether, swapStationCytometers } from "../js/games/whitewhale-tether/tether-engine.js";
+      import { listenToTether, swapStationCytometers, startSeafloorScan } from "../js/games/whitewhale-tether/tether-engine.js";
+      import { TETHER_CONFIG } from "../js/games/whitewhale-tether/config.js";
       import { startOrbiterTimeline } from "../js/games/orbiter/orbiter-engine.js";
       import { ORBITER_CONFIG } from "../js/games/orbiter/config.js";
 
       const ORBITER_GAME_ID = ORBITER_CONFIG.ORBITER_GAME_ID;
+      const TETHER_GAME_ID = TETHER_CONFIG.TETHER_GAME_ID;
 
       const container = document.getElementById("admin-controls");
       let currentUnlocks = {};
@@ -79,6 +81,8 @@
               await unlockGame(group, game.id);
               // Unlocking the Orbiter View starts its timeline from this moment.
               if (game.id === ORBITER_GAME_ID) startOrbiterTimeline(group);
+              // Same idea for the seafloor-scan reveal on Deploy Tether.
+              if (game.id === TETHER_GAME_ID) startSeafloorScan();
               }
           });
 
