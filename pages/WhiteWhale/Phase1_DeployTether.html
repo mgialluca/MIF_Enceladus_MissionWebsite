@@ -362,6 +362,10 @@
             <div class="panel adv-sub-panel" id="adv-instrument-panel">
                 <h2>Instrument Selection</h2>
                 <div class="instrument-btn-row" id="adv-instrument-buttons"></div>
+                <div id="adv-mode-row" style="display:none;">
+                    <label for="adv-mode-select">Mode</label>
+                    <select id="adv-mode-select"></select>
+                </div>
                 <div id="adv-reagent-row" style="display:none;">
                     <label for="adv-reagent-select">Reagent</label>
                     <select id="adv-reagent-select">
@@ -623,15 +627,39 @@
         return `${mantissa}e${exp}`;
       }
 
+      // A family button (e.g. "GCMS") with modes in TETHER_CONFIG.INSTRUMENT_MODES
+      // selects that family's first/plain mode on click; the actual Mode
+      // dropdown (populated per-family in renderAdvancedTab) picks a specific
+      // one afterward. A family with no modes just selects itself directly.
       TETHER_CONFIG.INSTRUMENTS.forEach((instrument) => {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "instrument-btn";
         btn.dataset.instrument = instrument;
         btn.textContent = instrument;
-        btn.addEventListener("click", () => selectInstrument(instrument).catch(console.error));
+        btn.addEventListener("click", () => {
+          const modes = TETHER_CONFIG.INSTRUMENT_MODES[instrument];
+          selectInstrument(modes ? modes[0] : instrument).catch(console.error);
+        });
         advInstrumentButtonsEl.appendChild(btn);
       });
+
+      const advModeRow = document.getElementById("adv-mode-row");
+      const advModeSelect = document.getElementById("adv-mode-select");
+      advModeSelect.addEventListener("change", () => {
+        selectInstrument(advModeSelect.value).catch(console.error);
+      });
+
+      // Given the actual selected instrument (possibly a mode, e.g. "LCMS
+      // spectra"), returns which family button it belongs to — itself, if
+      // that instrument has no modes.
+      function instrumentFamily(instrument) {
+        if (!instrument) return null;
+        for (const [family, modes] of Object.entries(TETHER_CONFIG.INSTRUMENT_MODES)) {
+          if (modes.includes(instrument)) return family;
+        }
+        return instrument;
+      }
 
       TETHER_CONFIG.REAGENTS.forEach((r) => {
         const opt = document.createElement("option");
@@ -758,10 +786,26 @@
           btn.disabled = !sessionReady || used;
         });
 
+        const activeFamily = instrumentFamily(adv?.selectedInstrument);
         Array.from(advInstrumentButtonsEl.children).forEach((btn) => {
-          btn.classList.toggle("active", adv?.selectedInstrument === btn.dataset.instrument);
+          btn.classList.toggle("active", activeFamily === btn.dataset.instrument);
           btn.disabled = !sessionReady;
         });
+
+        // --- Mode dropdown (GCMS's 2 modes, LCMS's 2 modes) ---
+        const activeModes = activeFamily ? TETHER_CONFIG.INSTRUMENT_MODES[activeFamily] : null;
+        advModeRow.style.display = activeModes ? "block" : "none";
+        if (activeModes) {
+          advModeSelect.innerHTML = "";
+          activeModes.forEach((m) => {
+            const opt = document.createElement("option");
+            opt.value = m;
+            opt.textContent = m;
+            advModeSelect.appendChild(opt);
+          });
+          advModeSelect.value = adv?.selectedInstrument || activeModes[0];
+          advModeSelect.disabled = !sessionReady;
+        }
 
         const showReagent = adv?.selectedInstrument === "Incubations";
         advReagentRow.style.display = showReagent ? "block" : "none";

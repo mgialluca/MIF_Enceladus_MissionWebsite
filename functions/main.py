@@ -122,7 +122,13 @@ def hive_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
     suffix = "" if version == 1 else f"_V{version}"
     filename = f"{box_id}{suffix}.csv"
 
-    csv_content = generate_placeholder_csv(x, y, z)
+    # In-situ data collection (automatic, on arrival) is technically the
+    # CTD-pH instrument on both missions — see whale_collect_basic_data_sample.
+    header = _build_file_header(
+        mission=group, instrument="CTD-pH",
+        x=x, y=y, z=z, volume_ml="N/A", sample_type="bulk"
+    )
+    csv_content = header + generate_placeholder_csv(x, y, z)
     file_id = upload_to_drive(GROUP_DRIVE_FOLDERS[group], filename, csv_content)
 
     return https_fn.Response(
@@ -134,11 +140,16 @@ def hive_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
 
 # ======================================================================
 # HIVE base station — advanced sample analysis, one Cloud Function per
-# instrument. All six are placeholders for now: they just echo the inputs
+# instrument: ICP-MS, CE-LIF, GCMS (+ its "GCMS Derivatized"/"GCMS
+# AAChirality" modes — a mode IS its own instrument on the backend, see
+# js/games/hive-drone-explorer/config.js's INSTRUMENT_MODES), GC-BID, CRDS,
+# IC, and Incubation are all placeholders for now: they just echo the inputs
 # they received into the uploaded file (and the JSON response) so the wiring
 # can be verified before the real per-instrument science model is written.
 # They share this helper; each stays its own deployable function since the
-# real implementations will eventually differ per instrument.
+# real implementations will eventually differ per instrument. FC (Flow
+# Cytometer) is the one exception — see hive_analyze_sample_fc below, which
+# already has a real science model.
 # ======================================================================
 
 def _analysis_sample_number(drone_id):
@@ -212,7 +223,7 @@ def _handle_analysis_request(req, instrument, requires_reagent=False):
         return https_fn.Response("Missing reagent for incubation", status=400)
 
     sample_number = _analysis_sample_number(drone_id)
-    instrument_stem = instrument.replace("-", "").replace(" ", "")
+    instrument_stem = "".join(ch for ch in instrument if ch.isalnum())
     filename = f"{drone_id}_Analysis{sample_number}_{instrument_stem}.txt"
 
     content = _generate_analysis_file(instrument, drone_id, volume_l, origin, reagent)
@@ -240,18 +251,43 @@ def _handle_analysis_request(req, instrument, requires_reagent=False):
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_icpms(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "ICP-MS")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
 def hive_analyze_sample_celif(req: https_fn.Request) -> https_fn.Response:
     return _handle_analysis_request(req, "CE-LIF")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def hive_analyze_sample_cec4d(req: https_fn.Request) -> https_fn.Response:
-    return _handle_analysis_request(req, "CE-C4D")
+def hive_analyze_sample_gcms(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "GCMS")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def hive_analyze_sample_gcms(req: https_fn.Request) -> https_fn.Response:
-    return _handle_analysis_request(req, "GCMS")
+def hive_analyze_sample_gcms_derivatized(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "GCMS Derivatized")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_gcms_aachirality(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "GCMS AAChirality")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_gcbid(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "GC-BID")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_crds(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "CRDS")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_ic(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "IC")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
@@ -316,11 +352,6 @@ def hive_analyze_sample_fc(req: https_fn.Request) -> https_fn.Response:
         status=200,
         content_type="application/json",
     )
-
-
-@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def hive_analyze_sample_microscope(req: https_fn.Request) -> https_fn.Response:
-    return _handle_analysis_request(req, "Microscope")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
@@ -397,8 +428,11 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
     sample_number = get_next_station_sample_number(group, station_id)
     filename = f"{_whale_station_stem(station_label, station_id)}_Sample{sample_number}.txt"
 
+    # In-situ data collection (the "Collect Sample" button, before any
+    # filtering) is technically the CTD-pH instrument on both missions — see
+    # hive_collect_basic_data_sample.
     header = _build_file_header(
-        mission="White Whale", instrument="Basic Water Sample",
+        mission="White Whale", instrument="CTD-pH",
         x=x_m, y=y_m, z=depth_m, volume_ml="N/A", sample_type="bulk"
     )
     content = header + generate_placeholder_station_file(station_label, sample_number, depth_m)
@@ -419,13 +453,17 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
 
 
 # ======================================================================
-# WhiteWhale advanced data collection — Flow Cytometer, FACS, and 5 instrument
-# functions. Every filtration run goes through two stages: the first 1 mL
-# through the Flow Cytometer (full per-event spreadsheet, the real science
-# model in sort_particles_flow_cytometer.py), then the rest through FACS
-# (bin totals only, no event cap). Both share one filtration-number counter
-# so their files tag back to the same run. Each instrument analysis is its
-# own deployable function sharing one request handler, mirroring HIVE's
+# WhiteWhale advanced data collection — Flow Cytometer, FACS, and one Cloud
+# Function per instrument: ICP-MS, TC/TN Analyzer, LCMS (+ its "LCMS spectra"
+# mode), GCMS (+ its "GCMS Derivatized" mode — a mode IS its own instrument
+# on the backend, see js/games/whitewhale-tether/config.js's
+# INSTRUMENT_MODES), FTIR Spectra, TOC/DOC Analyzer, IC, and Incubations.
+# Every filtration run goes through two stages: the first 1 mL through the
+# Flow Cytometer (full per-event spreadsheet, the real science model in
+# sort_particles_flow_cytometer.py), then the rest through FACS (bin totals
+# only, no event cap). Both share one filtration-number counter so their
+# files tag back to the same run. Each instrument analysis is its own
+# deployable function sharing one request handler, mirroring HIVE's
 # base-station setup.
 #
 # WhiteWhale's station x,y is the tether's own confirmed drop location
@@ -647,23 +685,48 @@ def _handle_whale_analysis_request(req, instrument, requires_reagent=False):
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def whale_analyze_sample_lcmsms(req: https_fn.Request) -> https_fn.Response:
-    return _handle_whale_analysis_request(req, "LCMSMS")
+def whale_analyze_sample_icpms(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "ICP-MS")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def whale_analyze_sample_xrdxrf(req: https_fn.Request) -> https_fn.Response:
-    return _handle_whale_analysis_request(req, "XRD/XRF")
+def whale_analyze_sample_tctn(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "TC/TN Analyzer")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
-def whale_analyze_sample_epr(req: https_fn.Request) -> https_fn.Response:
-    return _handle_whale_analysis_request(req, "EPR")
+def whale_analyze_sample_lcms(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "LCMS")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_lcms_spectra(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "LCMS spectra")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
 def whale_analyze_sample_gcms(req: https_fn.Request) -> https_fn.Response:
     return _handle_whale_analysis_request(req, "GCMS")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_gcms_derivatized(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "GCMS Derivatized")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_ftir(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "FTIR Spectra")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_tocdoc(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "TOC/DOC Analyzer")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def whale_analyze_sample_ic(req: https_fn.Request) -> https_fn.Response:
+    return _handle_whale_analysis_request(req, "IC")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))

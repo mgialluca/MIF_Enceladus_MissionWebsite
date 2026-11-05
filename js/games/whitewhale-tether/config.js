@@ -58,7 +58,8 @@ export const TETHER_CONFIG = {
   // is flat for now); kept here so switching to real per-instrument timing
   // later is a one-line change in startAnalysis() in advanced-station-engine.js.
   INSTRUMENT_ANALYSIS_MINUTES: {
-    LCMSMS: 5, "XRD/XRF": 2, EPR: 2, GCMS: 4, Incubations: 2
+    "ICP-MS": 4, "TC/TN Analyzer": 3, "LCMS": 5, "LCMS spectra": 5, "GCMS": 4,
+    "GCMS Derivatized": 4, "FTIR Spectra": 2, "TOC/DOC Analyzer": 3, "IC": 3, "Incubations": 2
   },
 
   // Seven selectable items in the Size Bin window: six particle bins plus
@@ -78,7 +79,23 @@ export const TETHER_CONFIG = {
     { id: "dissolved", label: "Dissolved Water Fraction", particleBin: null }
   ],
 
-  INSTRUMENTS: ["LCMSMS", "XRD/XRF", "EPR", "GCMS", "Incubations"],
+  // Finalized instrument list. GCMS and LCMS are "family" buttons — selecting
+  // either opens a Mode dropdown (see INSTRUMENT_MODES) rather than going
+  // straight to analysis; every mode is really its own instrument on the
+  // backend, with its own Cloud Function. Replaces the old placeholder list
+  // (LCMSMS, XRD/XRF, EPR, GCMS, Incubations).
+  INSTRUMENTS: ["ICP-MS", "TC/TN Analyzer", "LCMS", "GCMS", "FTIR Spectra", "TOC/DOC Analyzer", "IC", "Incubations"],
+
+  // family button label -> its selectable modes. The mode string IS the
+  // actual instrument identifier used everywhere downstream (filenames,
+  // INSTRUMENT_FUNCTION_URLS lookup, Cloud Function routing) — selecting a
+  // mode is exactly like selecting a different instrument. The first mode
+  // in each list is what gets selected when the family button itself is
+  // clicked, before a specific mode is chosen.
+  INSTRUMENT_MODES: {
+    "GCMS": ["GCMS", "GCMS Derivatized"],
+    "LCMS": ["LCMS", "LCMS spectra"]
+  },
 
   REAGENTS: ["14C-formate", "14C-acetate", "14C-D-glycine", "14C-L-glycine"],
 
@@ -87,12 +104,17 @@ export const TETHER_CONFIG = {
   FACS_URL:
     "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_facs_sample",
 
-  // One Cloud Function per instrument — see functions/main.py.
+  // One Cloud Function per instrument (every GCMS/LCMS mode included) — see functions/main.py.
   INSTRUMENT_FUNCTION_URLS: {
-    "LCMSMS": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_lcmsms",
-    "XRD/XRF": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_xrdxrf",
-    "EPR": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_epr",
+    "ICP-MS": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_icpms",
+    "TC/TN Analyzer": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_tctn",
+    "LCMS": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_lcms",
+    "LCMS spectra": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_lcms_spectra",
     "GCMS": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_gcms",
+    "GCMS Derivatized": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_gcms_derivatized",
+    "FTIR Spectra": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_ftir",
+    "TOC/DOC Analyzer": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_tocdoc",
+    "IC": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_ic",
     "Incubations": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/whale_analyze_sample_incubation"
   }
 };

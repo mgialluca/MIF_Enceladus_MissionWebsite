@@ -5,13 +5,17 @@ time code writes to them. This file keeps every script touching them consistent.
 
 Game code: `js/games/whitewhale-tether/` + `pages/WhiteWhale/Phase1_DeployTether.html`
 Cloud Functions: `whale_collect_basic_data_sample`, `whale_flow_cytometer_sample`, `whale_facs_sample`,
-`whale_analyze_sample_{lcmsms,xrdxrf,epr,gcms,incubation}`, `reset_group` (WhiteWhale branch)
+`whale_analyze_sample_{icpms,tctn,lcms,lcms_spectra,gcms,gcms_derivatized,ftir,tocdoc,ic,incubation}`,
+`reset_group` (WhiteWhale branch)
 
 Every data file this game uploads (basic collection, Flow Cytometer, FACS, and
 each instrument analysis) is prefixed with the same `#`-comment metadata
 block: Mission, Instrument, X/Y/Z (m), Water Volume (mL), Sample Type
 ("bulk" | "size bin" | "dissolved"), and Method File (always the literal
 string "method file" for now). See `_build_file_header()` in `functions/main.py`.
+In-situ data collection — the "Collect Sample" button, before any
+filtering — is technically the CTD-pH instrument (`instrument="CTD-pH"`),
+same as HIVE's automatic on-arrival collection.
 WhiteWhale's station x,y is the tether's own confirmed drop location
 (`tetherX`/`tetherY` on the tether state doc below) — every Cloud Function
 call reads it from there. It's chosen once, before anything else in this
@@ -136,7 +140,13 @@ Fields:
                                                     // size-bin buttons once FACS finishes
 - sizeBinsUsed: [ <sizeBin id>, ... ]  // each of the 7 items may only be analyzed once per sample
 - selectedSizeBins: [ <sizeBin id>, ... ]  // multi-select — combine several into one analysis
-- selectedInstrument: "LCMSMS" | "XRD/XRF" | "EPR" | "GCMS" | "Incubations" | null
+- selectedInstrument: "ICP-MS" | "TC/TN Analyzer" | "LCMS" | "LCMS spectra" | "GCMS"
+                     | "GCMS Derivatized" | "FTIR Spectra" | "TOC/DOC Analyzer" | "IC"
+                     | "Incubations" | null
+  // "LCMS"/"LCMS spectra" are LCMS's 2 modes, "GCMS"/"GCMS Derivatized" are
+  // GCMS's 2 modes (see TETHER_CONFIG.INSTRUMENT_MODES) — once a mode is
+  // chosen it IS the instrument value; there's no separate "mode" field.
+  // Clicking the family button itself selects that family's plain mode.
 - selectedReagent: <string> | null    // only meaningful when instrument === "Incubations"
 - currentRun: null | {
     type: "flow_cytometer" | "facs_sorting" | "analysis",

@@ -80,6 +80,12 @@ boxId: "X{x}_Y{y}_Z{z}" (meters, e.g. "X7500_Y5000_Z39500")
 Fields:
 - visitCount: <number>   // used by Cloud Function to name files _V2, _V3, etc.
 
+The in-situ data file this produces (`hive_collect_basic_data_sample`,
+triggered automatically on arrival) is technically the CTD-pH instrument —
+`_build_file_header(mission=group, instrument="CTD-pH", ...)` — same as
+WhiteWhale's "Collect Sample" button before any filtering
+(`whale_collect_basic_data_sample`, instrument="CTD-pH" there too).
+
 ## Path: groups/HIVE/baseStation/state
 HIVE-only. Single shared doc — one physical base station for the whole group;
 it can select/prep/analyze exactly one drone's sample at a time. Written by
@@ -97,7 +103,12 @@ this one for players — add more strings there as they come up.
 Fields:
 - selectedDroneId: <string> | null
 - volumeToAnalyzeL: <number> | null
-- instrument: "CE-LIF" | "CE-C4D" | "GCMS" | "FC" | "Microscope" | "Incubation" | null
+- instrument: "ICP-MS" | "CE-LIF" | "GCMS" | "GCMS Derivatized" | "GCMS AAChirality"
+            | "GC-BID" | "CRDS" | "IC" | "Incubation" | "FC" | null
+  // "GCMS"/"GCMS Derivatized"/"GCMS AAChirality" are GCMS's 3 selectable
+  // modes (see MISSION_CONFIG.INSTRUMENT_MODES) — once a mode is chosen it
+  // IS the instrument value; there's no separate "mode" field. The GCMS
+  // button itself just selects the plain "GCMS" mode by default.
 - reagent: <string> | null   // only meaningful when instrument === "Incubation"
 - stationStatus: "standby" | "analyzing"
 - currentRun: null | {
@@ -116,11 +127,12 @@ location — so every HIVE Flow Cytometer file reflects wherever that
 particular drone actually drew its sample. Output is a `.csv`
 (`{droneId}_Analysis{N}_FC.csv`) with the same `#`-comment metadata header
 (`_build_file_header(mission="HIVE", ...)`) WhiteWhale's files get. The other
-5 instruments remain the shared placeholder (`_generate_analysis_file`,
-`.txt` output, no header) until they get the same treatment.
+9 instruments (ICP-MS, CE-LIF, all 3 GCMS modes, GC-BID, CRDS, IC, Incubation)
+remain the shared placeholder (`_generate_analysis_file`, `.txt` output, no
+header) until they get the same treatment.
 
 ## Path: groups/HIVE/analysisSamples/{droneId}
-HIVE-only. Atomic counter, one per drone, shared across all 6 instruments —
+HIVE-only. Atomic counter, one per drone, shared across all 10 instruments —
 names analysis files `{droneId}_Analysis{N}_{Instrument}.txt` (`.csv` for FC).
 
 Fields:

@@ -50,7 +50,23 @@ export const MISSION_CONFIG = {
   MIN_ANALYSIS_VOLUME_L: 0.001,
   FC_MAX_VOLUME_L: 0.001,
 
-  INSTRUMENTS: ["CE-LIF", "CE-C4D", "GCMS", "FC", "Microscope", "Incubation"],
+  // Finalized instrument list. GCMS is a "family" button — selecting it
+  // opens a Mode dropdown (see INSTRUMENT_MODES) rather than going straight
+  // to analysis; every mode is really its own instrument on the backend,
+  // with its own Cloud Function. Microscope and CE-C4D were dropped from the
+  // old placeholder list; FC (Flow Cytometer) stays alongside the finalized
+  // 7 as an 8th instrument.
+  INSTRUMENTS: ["ICP-MS", "CE-LIF", "GCMS", "GC-BID", "CRDS", "IC", "Incubation", "FC"],
+
+  // family button label -> its selectable modes. The mode string IS the
+  // actual instrument identifier used everywhere downstream (filenames,
+  // INSTRUMENT_FUNCTION_URLS lookup, Cloud Function routing) — selecting a
+  // mode is exactly like selecting a different instrument. The first mode
+  // in each list is what gets selected when the family button itself is
+  // clicked, before a specific mode is chosen.
+  INSTRUMENT_MODES: {
+    "GCMS": ["GCMS", "GCMS Derivatized", "GCMS AAChirality"]
+  },
 
   // Static informational notes shown on the base-station tab — add more here
   // as they come up; each becomes one bullet.
@@ -60,14 +76,18 @@ export const MISSION_CONFIG = {
 
   REAGENTS: ["14C-formate", "14C-acetate", "14C-D-glycine", "14C-L-glycine"],
 
-  // One Cloud Function per instrument — see functions/main.py.
+  // One Cloud Function per instrument (every GCMS mode included) — see functions/main.py.
   INSTRUMENT_FUNCTION_URLS: {
+    "ICP-MS": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_icpms",
     "CE-LIF": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_celif",
-    "CE-C4D": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_cec4d",
     "GCMS": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_gcms",
-    "FC": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_fc",
-    "Microscope": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_microscope",
-    "Incubation": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_incubation"
+    "GCMS Derivatized": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_gcms_derivatized",
+    "GCMS AAChirality": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_gcms_aachirality",
+    "GC-BID": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_gcbid",
+    "CRDS": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_crds",
+    "IC": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_ic",
+    "Incubation": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_incubation",
+    "FC": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_fc"
   },
 
   // --- Testing helper: speeds everything up during development. ---
