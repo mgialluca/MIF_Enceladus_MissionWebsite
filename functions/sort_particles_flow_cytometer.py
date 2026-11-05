@@ -131,12 +131,9 @@ PARCELS = {
 Z_PARCEL0_END = 1.0          # 0-1 m: Parcel 0
 Z_TRANSITION_01_END = 10.0   # 1-10 m: Parcel 0 -> Parcel 1
 Z_PARCEL1_END = 20.0         # 10-20 m: Parcel 1
-Z_TRANSITION_12_END = 30.0   # 20-30 m: Parcel 1 -> Parcel 2
-Z_PARCEL2_END = 45000.0      # 30 m-45 km: Parcel 2
-Z_TRANSITION_23_END = 46000.0  # 45-46 km: Parcel 2 -> Parcel 3; 46 km+: Parcel 3
-
-# How sharply every transition band approaches its target (see _ease()).
-TRANSITION_STEEPNESS = 3.0
+Z_TRANSITION_12_END = 130.0  # 20-130 m: Parcel 1 -> Parcel 2 (110 m wide, was 10 m/20-30m)
+Z_PARCEL2_END = 44000.0      # 130 m-44 km: Parcel 2 (was 30 m-45 km)
+Z_TRANSITION_23_END = 46000.0  # 44-46 km: Parcel 2 -> Parcel 3 (2 km wide, was 1 km/45-46km); 46 km+: Parcel 3
 
 # ── Vents ─────────────────────────────────────────────────────────────────────
 # Parcel 4 is a tight envelope around each actual vent chimney, not the whole
@@ -145,7 +142,7 @@ TRANSITION_STEEPNESS = 3.0
 # elsewhere for e.g. the field's overall thermal-detectability radius — they
 # are NOT the right numbers for "am I at a hydrothermal vent"). Within
 # VENT_CORE_RADIUS_M of the nearest vent's own 3D structure, full Parcel 4; out
-# to VENT_TRANSITION_RADIUS_M, an exponential decay back toward whatever the
+# to VENT_TRANSITION_RADIUS_M, a linear decay back toward whatever the
 # depth rule gives. Distance is true 3D distance to the vent's vertical
 # chimney segment (from the seafloor at z_base up to the chimney top at
 # z_top = z_base - vent_height_m) — NOT horizontal-only — so a point directly
@@ -267,15 +264,17 @@ FIELD_DRIFT_CLIP = (1.0, 10000.0)
 
 def _ease(frac):
     """
-    Maps 0..1 -> 0..1 with a saturating-exponential shape: fast initial change,
-    leveling off near 1. Reads as "rapidly approaching" the target while still
-    landing exactly on it at frac=1, so no visible jump happens at a zone
-    boundary. The same shape works whether the target value is higher or
-    lower than the start — it only describes how fast the blend moves, not
-    which direction.
+    Maps 0..1 -> 0..1 linearly (clamped) — every transition band blends at a
+    constant rate across its full width, landing exactly on the target at
+    frac=1 so no visible jump happens at a zone boundary. Was a front-loaded
+    saturating-exponential (fast initial change, leveling off near 1); changed
+    to plain linear so transitions read as slower/more gradual throughout,
+    not mostly-finished by their own midpoint. Kept as its own function
+    (rather than using frac directly) so every transition — the depth ladder
+    AND the vent radial transition — still shares one single place that
+    defines "how a blend moves through its band".
     """
-    frac = min(max(frac, 0.0), 1.0)
-    return (1 - np.exp(-TRANSITION_STEEPNESS * frac)) / (1 - np.exp(-TRANSITION_STEEPNESS))
+    return min(max(frac, 0.0), 1.0)
 
 
 def _blend_params(params_a, params_b, frac):
@@ -311,18 +310,18 @@ def get_parcel_params(x, y, z):
 
     Depth zones (the "background" — what you'd get with no vent nearby):
       0-1 m        Parcel 0 (surface, dissolved only — no particles at all)
-      1-10 m       exponential transition, Parcel 0 -> Parcel 1
+      1-10 m       linear transition, Parcel 0 -> Parcel 1
       10-20 m      Parcel 1 (Ice/Water Interface)
-      20-30 m      exponential transition, Parcel 1 -> Parcel 2
-      30 m-45 km   Parcel 2 (Bulk Ocean)
-      45-46 km     exponential transition, Parcel 2 -> Parcel 3
+      20-130 m     linear transition, Parcel 1 -> Parcel 2
+      130 m-44 km  Parcel 2 (Bulk Ocean)
+      44-46 km     linear transition, Parcel 2 -> Parcel 3
       46 km+       Parcel 3 (Hydrothermal Periphery)
 
-    Vent override — checked at every depth (not just 45 km+), using true 3D
+    Vent override — checked at every depth (not just 44 km+), using true 3D
     distance to the nearest vent's own chimney structure (see VENTS /
     _nearest_vent_distance_m), not horizontal distance to a field center.
     Within VENT_CORE_RADIUS_M of a vent, full Parcel 4 (Hydrothermal Hotspot).
-    Out to VENT_TRANSITION_RADIUS_M, an exponential transition from Parcel 4
+    Out to VENT_TRANSITION_RADIUS_M, a linear transition from Parcel 4
     back to the background above — so right at the edge of that band, the
     blend lands on that depth's own background mix, not a hardcoded Parcel 3.
     Every real vent sits well below 46 km, so in practice this only ever
@@ -651,29 +650,28 @@ if __name__ == '__main__':
     # chimney's [z_top, z_base] range, since Parcel 4 is now a tight 3D
     # envelope around each vent, not a ~1km field-level radius.
     #
-    # Every "transitionX_to_Y" example below sits at the depth/distance where
-    # _ease() actually returns 0.5, NOT the arithmetic midpoint of the zone —
-    # _ease is front-loaded (steepness=3), so the literal midpoint is already
-    # ~82% of the way to the target parcel and barely reads as a blend at all.
-    # Solving _ease(frac) = 0.5 gives frac = 0.21485 of the way through
-    # whichever zone (depth band, or the 10-100m vent radial band).
+    # Every "transitionX_to_Y" example below sits at the exact arithmetic
+    # midpoint of its zone (depth band, or the 10-100m vent radial band) —
+    # now that _ease() is linear, the midpoint IS where the blend is a true
+    # 50/50 split; that wasn't true under the old front-loaded exponential
+    # ease, which needed specially-solved, off-center depths instead.
     _v = VENTS[0]
     _mid_z = (_v['z_top'] + _v['z_base']) / 2
     examples = {
         'parcel0_surface': (0.0, 0.0, 0.5),
-        'transition_0to1': (0.0, 0.0, 2.934),      # z in [1, 10]
+        'transition_0to1': (0.0, 0.0, 5.5),        # z in [1, 10]
         'parcel1_interface': (0.0, 0.0, 15.0),
-        'transition_1to2': (0.0, 0.0, 22.149),     # z in [20, 30]
+        'transition_1to2': (0.0, 0.0, 75.0),       # z in [20, 130]
         'parcel2_bulk_ocean': (0.0, 0.0, 27000.0),
-        'transition_2to3': (4900.0, 4900.0, 45214.853),  # z in [45000, 46000]
+        'transition_2to3': (4900.0, 4900.0, 45000.0),  # z in [44000, 46000]
         'parcel3_periphery': (4900.0, 4900.0, 48000.0),
         # Horizontal offset from a real vent's own (x,y), AT its mid-chimney
         # depth (so the vertical component of the 3D distance is 0) — a 3D
-        # distance of ~29.34m from the vent, i.e. 0.21485 of the way through
-        # the 10-100m VENT_CORE_RADIUS_M/VENT_TRANSITION_RADIUS_M band. This
-        # is the Parcel 3<->4 "transition" — radial distance from a vent, not
-        # depth, so there's no depth-based transition_3to4 to speak of.
-        'transition_3to4_vent': (_v['x'] + 29.337, _v['y'], _mid_z),
+        # distance of exactly 55m from the vent, the midpoint of the 10-100m
+        # VENT_CORE_RADIUS_M/VENT_TRANSITION_RADIUS_M band. This is the
+        # Parcel 3<->4 "transition" — radial distance from a vent, not depth,
+        # so there's no depth-based transition_3to4 to speak of.
+        'transition_3to4_vent': (_v['x'] + 55.0, _v['y'], _mid_z),
         'parcel4_hotspot': (_v['x'], _v['y'], _mid_z),
     }
     for label, (x, y, z) in examples.items():
