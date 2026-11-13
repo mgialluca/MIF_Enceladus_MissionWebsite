@@ -104,7 +104,16 @@ async function activateFrontCommand(group, droneId) {
 
   const command = { ...queue[0] };
   await ensureSeafloorLoaded(); // terrain must be ready before legs are checked for hazards
-  let legs = decomposeMove(drone.position, command.destination).map(enrichLegWithHazards);
+  // Return trips are never destroyed — if a drone could get all the way out
+  // to a location, it can get back, full stop. Skip hazard enrichment
+  // entirely rather than relying on anything downstream to ignore it: this
+  // is the exact same {...leg, collision: null, warningAt: null} shape
+  // enrichLegWithHazards() itself returns for a genuinely clear leg, so
+  // nothing later in the pipeline (collisionTimeMs/warningTimeMs/tick())
+  // needs to know or care that this leg was never actually checked.
+  let legs = command.type === "return_sample"
+    ? decomposeMove(drone.position, command.destination).map((leg) => ({ ...leg, collision: null, warningAt: null }))
+    : decomposeMove(drone.position, command.destination).map(enrichLegWithHazards);
   if (command.type === "return_sample" && MISSION_CONFIG.RETURN_TRIP_SPEED_MULTIPLIER !== 1) {
     legs = legs.map((leg) => ({
       ...leg,

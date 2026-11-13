@@ -42,7 +42,9 @@ Fields:
 - commandQueue: [
     {
       commandId: <string>,          // unique, for cancel/edit targeting
-      type: "collect" | "return_sample",  // return_sample: no collection dwell/upload on arrival; docks instead
+      type: "collect" | "return_sample",  // return_sample: no collection dwell/upload on arrival; docks instead.
+                                           // ALSO never subject to hazard/collision checks at all (see below) —
+                                           // "if a drone can get to a location, it can get home."
       destination: { x, y, z },     // user-specified final target (meters); (0,0,0) for return_sample
       legs: [                       // 1-2 legs, from decomposeMove()
         {
@@ -52,18 +54,18 @@ Fields:
           travelTimeSeconds: <number>,
           startedAt: <timestamp|null>,
           arrivalAt: <timestamp|null>,
-          collision: null | {
-            type: "floor" | "vent",
-            hazardId: <string>,
+          collision: null | {       // ALWAYS null for a return_sample command — hazard enrichment is
+            type: "floor" | "vent", // skipped entirely for return legs (activateFrontCommand() in
+            hazardId: <string>,     // drone-engine.js), not just "checked but never triggered"
             label: <string>,
             t: <0-1 segment fraction>,
             point: { x, y, z },
             distanceFromStartM: <number>
           },
-          warningAt: null | {
-            t: <0-1 segment fraction>,
-            distanceBeforeImpactM: 5,
-            point: { x, y, z }
+          warningAt: null | {       // ALWAYS null for return_sample too — collisionTimeMs()/warningTimeMs()
+            t: <0-1 segment fraction>,  // (hazards.js) both key off collision/warningAt being non-null, so
+            distanceBeforeImpactM: 5,   // this alone is what makes tick() skip both the proximity warning
+            point: { x, y, z }          // and the destruction check for these legs
           },
           warningIssued: <boolean|null>
         }
