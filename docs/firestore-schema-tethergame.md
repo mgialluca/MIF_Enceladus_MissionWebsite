@@ -178,6 +178,21 @@ Phase flow:
   selectedSizeBins/sizeBinsUsed; it never appears in facsBinTotals (no
   particle count applies to it).
 
+  Most instruments now report REAL concentration data
+  (`instrument_concentrations.py` — see [[instrument-concentrations]] for
+  the full design) instead of the old placeholder echo file. If "Dissolved
+  Water Fraction" is anywhere in the selection, the analysis call uses the
+  bulk-water formula over the dissolved column and floods out any other
+  bucket selected alongside it (per explicit design decision — a mixed
+  selection reports dissolved only, nothing combined). Otherwise it uses
+  the particle formula over just the selected buckets, reading
+  `facsBinTotals` as the exact particle counts — `finishAnalysis()` in
+  `advanced-station-engine.js` sends the current `adv.facsBinTotals` along
+  with every analysis request so the report stays self-consistent with the
+  numbers already shown on the bin buttons. LCMS spectra, FTIR Spectra, and
+  Incubations have no in-scope spreadsheet rows and stay on the placeholder
+  path.
+
 ## Notes / known limitations
 
 - Timers are client-side (`setTimeout`). Transitions only advance while a tab

@@ -104,7 +104,7 @@ Fields:
 - selectedDroneId: <string> | null
 - volumeToAnalyzeL: <number> | null
 - instrument: "ICP-MS" | "CE-LIF" | "GCMS" | "GCMS Derivatized" | "GCMS AAChirality"
-            | "GC-BID" | "CRDS" | "IC" | "Incubation" | "FC" | null
+            | "GC-BID" | "CRDS" | "IC" | "TOC/DOC Analyzer" | "Incubation" | "FC" | null
   // "GCMS"/"GCMS Derivatized"/"GCMS AAChirality" are GCMS's 3 selectable
   // modes (see MISSION_CONFIG.INSTRUMENT_MODES) — once a mode is chosen it
   // IS the instrument value; there's no separate "mode" field. The GCMS
@@ -119,20 +119,27 @@ Fields:
 - statusLog: [ up to 20 × { message: <string>, at: <epoch ms>|null }, newest first ]
 - lastUpdated: <epoch ms>
 
-FC is the one real instrument today: `hive_analyze_sample_fc` calls the same
-per-event science model WhiteWhale's Flow Cytometer uses
+FC calls the same per-event science model WhiteWhale's Flow Cytometer uses
 (`sort_particles_flow_cytometer.generate_parcel_data` / `player_visible_csv`),
 at the drone's own `originPosition` (x, y, z) rather than a fixed station
 location — so every HIVE Flow Cytometer file reflects wherever that
 particular drone actually drew its sample. Output is a `.csv`
 (`{droneId}_Analysis{N}_FC.csv`) with the same `#`-comment metadata header
-(`_build_file_header(mission="HIVE", ...)`) WhiteWhale's files get. The other
-9 instruments (ICP-MS, CE-LIF, all 3 GCMS modes, GC-BID, CRDS, IC, Incubation)
-remain the shared placeholder (`_generate_analysis_file`, `.txt` output, no
-header) until they get the same treatment.
+(`_build_file_header(mission="HIVE", ...)`) WhiteWhale's files get.
+
+Every other instrument (ICP-MS, CE-LIF, all 3 GCMS modes, GC-BID, IC,
+TOC/DOC Analyzer) now reports REAL concentration data too, via
+`instrument_concentrations.py` — see [[instrument-concentrations]] for the
+full design (the per-parcel data-bounds spreadsheets, the parcel-blend
+interpolation, bulk vs. particle formulas, unit/LOD handling). HIVE always
+uses the bulk-water formula (no FACS step). CRDS and GCMS AAChirality stay
+on the placeholder path (`_generate_analysis_file`, `.txt` output, no
+header) — they're genuinely isotope-ratio/chirality-ratio instruments with
+no concentration rows in the spreadsheet at all, not an oversight. Incubation
+stays placeholder too (not a concentration measurement).
 
 ## Path: groups/HIVE/analysisSamples/{droneId}
-HIVE-only. Atomic counter, one per drone, shared across all 10 instruments —
+HIVE-only. Atomic counter, one per drone, shared across all 11 instruments —
 names analysis files `{droneId}_Analysis{N}_{Instrument}.txt` (`.csv` for FC).
 
 Fields:

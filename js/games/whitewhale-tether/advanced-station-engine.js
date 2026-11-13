@@ -411,6 +411,11 @@ async function finishAnalysis(adv, run, station, t) {
         depthM: station?.assignedDepthM,
         xM: t?.tetherX,
         yM: t?.tetherY,
+        // The REAL FACS-sorted per-bucket counts — concentration
+        // instruments must report against these exact numbers, not
+        // recompute their own, so the sample stays self-consistent with
+        // what the bin buttons already showed the player.
+        facsBinTotals: adv.facsBinTotals,
         ...(run.reagent ? { reagent: run.reagent } : {})
       })
     });

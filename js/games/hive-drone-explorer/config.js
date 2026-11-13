@@ -55,8 +55,8 @@ export const MISSION_CONFIG = {
   // to analysis; every mode is really its own instrument on the backend,
   // with its own Cloud Function. Microscope and CE-C4D were dropped from the
   // old placeholder list; FC (Flow Cytometer) stays alongside the finalized
-  // 7 as an 8th instrument.
-  INSTRUMENTS: ["ICP-MS", "CE-LIF", "GCMS", "GC-BID", "CRDS", "IC", "Incubation", "FC"],
+  // 8 (TOC/DOC Analyzer added 2026-11-13) as a 9th instrument.
+  INSTRUMENTS: ["ICP-MS", "CE-LIF", "GCMS", "GC-BID", "CRDS", "IC", "TOC/DOC Analyzer", "Incubation", "FC"],
 
   // family button label -> its selectable modes. The mode string IS the
   // actual instrument identifier used everywhere downstream (filenames,
@@ -86,6 +86,7 @@ export const MISSION_CONFIG = {
     "GC-BID": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_gcbid",
     "CRDS": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_crds",
     "IC": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_ic",
+    "TOC/DOC Analyzer": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_tocdoc",
     "Incubation": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_incubation",
     "FC": "https://us-central1-enceladus-mission-simulation.cloudfunctions.net/hive_analyze_sample_fc"
   },

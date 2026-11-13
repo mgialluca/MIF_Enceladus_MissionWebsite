@@ -358,6 +358,50 @@ def get_parcel_params(x, y, z):
     return background
 
 
+def parcel_blend_weights(x, y, z):
+    """
+    Returns {parcel_index: weight, ...} (weights sum to 1.0) for position
+    (x, y, z) — the exact same depth-ladder + vent-radial blend
+    get_parcel_params() computes above, generalized to a plain weights dict
+    so OTHER per-parcel data (e.g. the per-instrument concentration tables in
+    functions/instrument_concentrations.py) can be blended the same way
+    without re-deriving the zone/vent constants by hand. This function and
+    get_parcel_params() must be kept in sync if either changes — see that
+    function's own docstring for the zone table this mirrors.
+    """
+    if z < 0:
+        raise ValueError(f"z must be a non-negative depth in m, got {z}")
+
+    if z <= Z_PARCEL0_END:
+        depth_weights = {0: 1.0}
+    elif z <= Z_TRANSITION_01_END:
+        t = _ease((z - Z_PARCEL0_END) / (Z_TRANSITION_01_END - Z_PARCEL0_END))
+        depth_weights = {0: 1 - t, 1: t}
+    elif z <= Z_PARCEL1_END:
+        depth_weights = {1: 1.0}
+    elif z <= Z_TRANSITION_12_END:
+        t = _ease((z - Z_PARCEL1_END) / (Z_TRANSITION_12_END - Z_PARCEL1_END))
+        depth_weights = {1: 1 - t, 2: t}
+    elif z <= Z_PARCEL2_END:
+        depth_weights = {2: 1.0}
+    elif z <= Z_TRANSITION_23_END:
+        t = _ease((z - Z_PARCEL2_END) / (Z_TRANSITION_23_END - Z_PARCEL2_END))
+        depth_weights = {2: 1 - t, 3: t}
+    else:
+        depth_weights = {3: 1.0}
+
+    dist = _nearest_vent_distance_m(x, y, z)
+    if dist <= VENT_CORE_RADIUS_M:
+        return {4: 1.0}
+    if dist <= VENT_TRANSITION_RADIUS_M:
+        t = _ease((dist - VENT_CORE_RADIUS_M) / (VENT_TRANSITION_RADIUS_M - VENT_CORE_RADIUS_M))
+        weights = {4: 1 - t}
+        for idx, w in depth_weights.items():
+            weights[idx] = weights.get(idx, 0.0) + w * t
+        return weights
+    return depth_weights
+
+
 def _scaled_count(conc_per_ml, sample_volume_ml, force_min_one=False):
     """round(conc * volume), with an optional floor of 1 — but ONLY when the
     true concentration is actually nonzero. A genuinely-zero concentration

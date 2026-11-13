@@ -31,6 +31,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 import sort_particles_flow_cytometer as flowcyt
+import instrument_concentrations
 
 initialize_app()
 
@@ -56,6 +57,18 @@ def _build_file_header(mission, instrument, x, y, z, volume_ml, sample_type, met
         f"# Method File: {method_file}",
     ]
     return "\n".join(lines) + "\n"
+
+
+def _concentration_rows_to_csv(rows):
+    """Formats instrument_concentrations.generate_report_rows()'s
+    (parameter, value_or_'Tr') tuples into the body of a real concentration
+    data file. Shared by both HIVE's and WhiteWhale's analysis handlers."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["Parameter", "Concentration_mol_per_L"])
+    for parameter, value in rows:
+        writer.writerow([parameter, value])
+    return buffer.getvalue()
 
 
 def generate_placeholder_csv(x, y, z):
@@ -143,13 +156,16 @@ def hive_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
 # instrument: ICP-MS, CE-LIF, GCMS (+ its "GCMS Derivatized"/"GCMS
 # AAChirality" modes — a mode IS its own instrument on the backend, see
 # js/games/hive-drone-explorer/config.js's INSTRUMENT_MODES), GC-BID, CRDS,
-# IC, and Incubation are all placeholders for now: they just echo the inputs
-# they received into the uploaded file (and the JSON response) so the wiring
-# can be verified before the real per-instrument science model is written.
-# They share this helper; each stays its own deployable function since the
-# real implementations will eventually differ per instrument. FC (Flow
-# Cytometer) is the one exception — see hive_analyze_sample_fc below, which
-# already has a real science model.
+# IC, TOC/DOC Analyzer, and Incubation all share _handle_analysis_request
+# below (each stays its own deployable function since real behavior can
+# still differ per instrument). Most of these now report REAL concentration
+# data — see instrument_concentrations.py, built from the per-parcel
+# spreadsheets in functions/data_bounds/ — whenever
+# instrument_has_concentration_data() says so; GCMS AAChirality, CRDS, and
+# Incubation have no in-scope rows there (chirality/isotope ratios, no rows
+# at all) and stay on the old echo-the-inputs placeholder path. FC (Flow
+# Cytometer) is handled entirely separately — see hive_analyze_sample_fc
+# below, which has its own real per-event science model.
 # ======================================================================
 
 def _analysis_sample_number(drone_id):
@@ -182,9 +198,9 @@ FC_MAX_VOLUME_L = 0.001
 
 
 def _generate_analysis_file(instrument, drone_id, volume_l, origin, reagent=None):
-    """Placeholder data generator shared by the 5 non-FC instrument functions.
-    Just echoes the received inputs — replace with the real per-instrument
-    science model later."""
+    """Placeholder data generator for whichever instruments
+    instrument_has_concentration_data() says have no real reporting yet
+    (GCMS AAChirality, CRDS, Incubation) — just echoes the received inputs."""
     lines = [
         f"Instrument: {instrument}",
         f"Drone: {drone_id}",
@@ -224,12 +240,29 @@ def _handle_analysis_request(req, instrument, requires_reagent=False):
 
     sample_number = _analysis_sample_number(drone_id)
     instrument_stem = "".join(ch for ch in instrument if ch.isalnum())
-    filename = f"{drone_id}_Analysis{sample_number}_{instrument_stem}.txt"
+    x_m, y_m, z_m = origin.get('x', 0), origin.get('y', 0), origin.get('z', 0)
 
-    content = _generate_analysis_file(instrument, drone_id, volume_l, origin, reagent)
-    file_id = upload_to_drive(
-        GROUP_DRIVE_FOLDERS["HIVE"], filename, content, mimetype="text/plain"
-    )
+    if instrument_concentrations.instrument_has_concentration_data("HIVE", instrument):
+        # HIVE always measures bulk water (no FACS step) — every
+        # concentration-capable instrument uses the bulk-water formula.
+        rows = instrument_concentrations.generate_report_rows(
+            "HIVE", instrument, x_m, y_m, z_m, sample_volume_l=volume_l
+        )
+        filename = f"{drone_id}_Analysis{sample_number}_{instrument_stem}.csv"
+        header = _build_file_header(
+            mission="HIVE", instrument=instrument,
+            x=x_m, y=y_m, z=z_m, volume_ml=volume_l * 1000, sample_type="bulk"
+        )
+        content = header + _concentration_rows_to_csv(rows)
+        file_id = upload_to_drive(
+            GROUP_DRIVE_FOLDERS["HIVE"], filename, content, mimetype="text/csv"
+        )
+    else:
+        filename = f"{drone_id}_Analysis{sample_number}_{instrument_stem}.txt"
+        content = _generate_analysis_file(instrument, drone_id, volume_l, origin, reagent)
+        file_id = upload_to_drive(
+            GROUP_DRIVE_FOLDERS["HIVE"], filename, content, mimetype="text/plain"
+        )
 
     return https_fn.Response(
         json.dumps({
@@ -288,6 +321,11 @@ def hive_analyze_sample_crds(req: https_fn.Request) -> https_fn.Response:
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
 def hive_analyze_sample_ic(req: https_fn.Request) -> https_fn.Response:
     return _handle_analysis_request(req, "IC")
+
+
+@https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
+def hive_analyze_sample_tocdoc(req: https_fn.Request) -> https_fn.Response:
+    return _handle_analysis_request(req, "TOC/DOC Analyzer")
 
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins="*", cors_methods=["POST"]))
@@ -464,7 +502,13 @@ def whale_collect_basic_data_sample(req: https_fn.Request) -> https_fn.Response:
 # only, no event cap). Both share one filtration-number counter so their
 # files tag back to the same run. Each instrument analysis is its own
 # deployable function sharing one request handler, mirroring HIVE's
-# base-station setup.
+# base-station setup. Most instruments now report REAL concentration data
+# (instrument_concentrations.py) whenever instrument_has_concentration_data()
+# says so — "Dissolved Water Fraction" uses the bulk-water formula (and
+# floods out any other bucket selected alongside it); specific size buckets
+# use the particle formula against the REAL FACS-sorted counts
+# (facsBinTotals in the request body). LCMS spectra, FTIR Spectra, and
+# Incubations have no in-scope rows and stay on the old placeholder path.
 #
 # WhiteWhale's station x,y is the tether's own confirmed drop location
 # (tetherX/tetherY, set on the "Seafloor Scan" tab) — every call here reads
@@ -600,9 +644,10 @@ def whale_facs_sample(req: https_fn.Request) -> https_fn.Response:
 
 
 def _generate_whale_analysis_file(instrument, station_id, filtration_number, size_bins, volume_l, depth_m, reagent=None):
-    """Placeholder data generator shared by all 5 WhiteWhale instrument
-    functions. Just echoes the received inputs — replace with the real
-    per-instrument science model later."""
+    """Placeholder data generator for whichever instruments
+    instrument_has_concentration_data() says have no real reporting yet
+    (LCMS spectra, FTIR Spectra, Incubations) — just echoes the received
+    inputs."""
     lines = [
         f"Instrument: {instrument}",
         f"Station: {station_id}",
@@ -615,6 +660,14 @@ def _generate_whale_analysis_file(instrument, station_id, filtration_number, siz
         lines.append(f"Reagent: {reagent}")
     lines.append(f"Analyzed (UTC): {datetime.now(timezone.utc).isoformat()}")
     return "\n".join(lines) + "\n"
+
+
+# Website size-bin id -> sort_particles_flow_cytometer-style bin name. Must
+# match the `particleBin` field on each entry of TETHER_CONFIG.SIZE_BINS in
+# js/games/whitewhale-tether/config.js — every bin but "lt0.5um" happens to
+# already equal its own particleBin string. "dissolved" has no particleBin
+# (it isn't a real size bucket) and is left unchanged by .get()'s fallback.
+_WEBSITE_BIN_TO_PARTICLE_BIN = {"lt0.5um": "<0.5um"}
 
 
 def _handle_whale_analysis_request(req, instrument, requires_reagent=False):
@@ -635,6 +688,7 @@ def _handle_whale_analysis_request(req, instrument, requires_reagent=False):
     reagent = data.get("reagent")
     x_m = data.get("xM", 0)
     y_m = data.get("yM", 0)
+    facs_bin_totals = data.get("facsBinTotals") or {}
 
     if not station_id:
         return https_fn.Response("Missing stationId", status=400)
@@ -646,23 +700,44 @@ def _handle_whale_analysis_request(req, instrument, requires_reagent=False):
     name_stem = _whale_station_stem(station_label, station_id)
     instrument_stem = "".join(ch for ch in instrument if ch.isalnum())
     bins_stem = "+".join(size_bins)
-    filename = f"{name_stem}_Filtration{filtration_number}_{bins_stem}_{instrument_stem}.txt"
 
-    # "Dissolved Water Fraction" analyzed on its own is a dissolved sample;
-    # anything else (alone or combined with Dissolved) is a size-bin sample.
-    sample_type = "dissolved" if size_bins == ["dissolved"] else "size bin"
+    # "Dissolved Water Fraction" floods out any other bucket selected
+    # alongside it (see instrument_concentrations.generate_report_rows), so
+    # the sample is a dissolved reading whenever it's present at all.
+    sample_type = "dissolved" if "dissolved" in size_bins else "size bin"
 
-    header = _build_file_header(
-        mission="White Whale", instrument=instrument,
-        x=x_m, y=y_m, z=depth_m, volume_ml=(volume_l or 0) * 1000, sample_type=sample_type
-    )
-    body = _generate_whale_analysis_file(
-        instrument, station_id, filtration_number, size_bins, volume_l, depth_m, reagent
-    )
-    content = header + body
-    file_id = upload_to_drive(
-        GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/plain"
-    )
+    if instrument_concentrations.instrument_has_concentration_data("WhiteWhale", instrument):
+        particle_bins = [_WEBSITE_BIN_TO_PARTICLE_BIN.get(b, b) for b in size_bins]
+        n_particles_by_bin = {
+            b: facs_bin_totals.get(b, 0) for b in particle_bins if b != "dissolved"
+        }
+        rows = instrument_concentrations.generate_report_rows(
+            "WhiteWhale", instrument, x_m, y_m, depth_m,
+            sample_volume_l=volume_l, selected_bins=particle_bins,
+            n_particles_by_bin=n_particles_by_bin
+        )
+        filename = f"{name_stem}_Filtration{filtration_number}_{bins_stem}_{instrument_stem}.csv"
+        header = _build_file_header(
+            mission="White Whale", instrument=instrument,
+            x=x_m, y=y_m, z=depth_m, volume_ml=(volume_l or 0) * 1000, sample_type=sample_type
+        )
+        content = header + _concentration_rows_to_csv(rows)
+        file_id = upload_to_drive(
+            GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/csv"
+        )
+    else:
+        filename = f"{name_stem}_Filtration{filtration_number}_{bins_stem}_{instrument_stem}.txt"
+        header = _build_file_header(
+            mission="White Whale", instrument=instrument,
+            x=x_m, y=y_m, z=depth_m, volume_ml=(volume_l or 0) * 1000, sample_type=sample_type
+        )
+        body = _generate_whale_analysis_file(
+            instrument, station_id, filtration_number, size_bins, volume_l, depth_m, reagent
+        )
+        content = header + body
+        file_id = upload_to_drive(
+            GROUP_DRIVE_FOLDERS["WhiteWhale"], filename, content, mimetype="text/plain"
+        )
 
     return https_fn.Response(
         json.dumps({

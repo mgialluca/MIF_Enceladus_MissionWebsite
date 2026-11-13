@@ -1,0 +1,150 @@
+MISSION 2 Ñ PARCEL 0 Ñ rows highlighted yellow in Parcel_0 column E (Mission 2). Every cell is linked to Parcel_0; edit the values on Parcel_0.,,,,,,,,,,,,,,,,,,
+"Linked columns: parameter, units, instrument, dissolved, size fractions, total particulate, total bulk, and AL:AQ (data_type, injection volume and units, LOD and units, error_rate). List of rows fixed 3 Oct 2026 Ñ re-run if the yellow highlighting changes.",,,,,,,,,,,,,,,,,,
+parameter,units,instrument,Dissolved quantity,0.02Ð0.5 µm,0.5Ð1 µm,1Ð5 µm,5Ð10 µm,10Ð20 µm,20Ð40 µm,Total in particulate phase,Total bulk concentration of whole parcel of water,data_type,injection_volume,injection_volume_units,LOD,LOD_units,Percent_error,Interpolation
+P ,mM,ICP-MS ,30,0,0,0,0,0,0,0,30,csv,0.0001,L,3.23E-08,mol/L,pct_error_formula,interpolation_formula
+S,mM,ICP-MS ,3.69,,,,,,,0,3.69,csv,0.0001,L,3.12E-08,mol/L,pct_error_formula,interpolation_formula
+K,mM,ICP-MS ,61.76890748,,,,,,,0,61.76890748,csv,0.0001,L,2.56E-08,mol/L,pct_error_formula,interpolation_formula
+Ca,mM,ICP-MS ,0.01,,,,,,,0,0.01,csv,0.0001,L,2.50E-08,mol/L,pct_error_formula,interpolation_formula
+Mg,mM,ICP-MS ,5.939318027,,,,,,,0,5.939318027,csv,0.0001,L,4.11E-08,mol/L,pct_error_formula,interpolation_formula
+Na,mM,ICP-MS ,2699.717009,,,,,,,0,2699.717009,csv,0.0001,L,4.35E-08,mol/L,pct_error_formula,interpolation_formula
+Fe,uM,ICP-MS ,10.6,0,0,0,0,0,0,0,10.6,csv,0.0001,L,1.79E-08,mol/L,pct_error_formula,interpolation_formula
+Mn,nM,ICP-MS ,141.15,0,0,0,0,0,0,0,141.15,csv,0.0001,L,1.82E-08,mol/L,pct_error_formula,interpolation_formula
+Ni,nM,ICP-MS ,321.2,0,0,0,0,0,0,0,321.2,csv,0.0001,L,1.70E-08,mol/L,pct_error_formula,interpolation_formula
+Co,nM,ICP-MS ,71.5,0,0,0,0,0,0,0,71.5,csv,0.0001,L,1.70E-08,mol/L,pct_error_formula,interpolation_formula
+Zn,uM,ICP-MS ,3.58,0,0,0,0,0,0,0,3.58,csv,0.0001,L,1.53E-08,mol/L,pct_error_formula,interpolation_formula
+Cu,nM,ICP-MS ,2745,0,0,0,0,0,0,0,2745,csv,0.0001,L,1.57E-08,mol/L,pct_error_formula,interpolation_formula
+Mo (molybdenum),nM,ICP-MS ,59,0,0,0,0,0,0,0,59,csv,0.0001,L,1.04E-08,mol/L,pct_error_formula,interpolation_formula
+W (tungsten),nM,ICP-MS ,10.4,0,0,0,0,0,0,0,10.4,csv,0.0001,L,5.44E-09,mol/L,pct_error_formula,interpolation_formula
+Cd (cadmium)`,nM,ICP-MS ,9.5,0,0,0,0,0,0,0,9.5,csv,0.0001,L,8.90E-09,mol/L,pct_error_formula,interpolation_formula
+Cr (chromium),nM,ICP-MS ,50,0,0,0,0,0,0,0,50,csv,0.0001,L,1.92E-08,mol/L,pct_error_formula,interpolation_formula
+V (vanadium),nM,ICP-MS ,76.45,0,0,0,0,0,0,0,76.45,csv,0.0001,L,1.96E-08,mol/L,pct_error_formula,interpolation_formula
+As,nM,ICP-MS ,1525,,,,,,,0,1525,csv,0.0001,L,1.33E-08,mol/L,pct_error_formula,interpolation_formula
+Si,uM,ICP-MS ,48.45,,,,,,,0,48.45,csv,0.0001,L,3.56E-08,mol/L,pct_error_formula,interpolation_formula
+Ba,nM,ICP-MS ,425,,,,,,,0,425,csv,0.0001,L,7.28E-09,mol/L,pct_error_formula,interpolation_formula
+Sr,uM,ICP-MS ,102,,,,,,,0,102,csv,0.0001,L,1.14E-08,mol/L,pct_error_formula,interpolation_formula
+Li,uM,ICP-MS ,44.5,,,,,,,0,44.5,csv,0.0001,L,1.44E-07,mol/L,pct_error_formula,interpolation_formula
+B (boron),uM,ICP-MS ,44.5,,,,,,,0,44.5,csv,0.0001,L,9.25E-08,mol/L,pct_error_formula,interpolation_formula
+total carbon (TC),mM,TC/TN_analyzer,153.7277791,0,0,0,0,0,0,0,153.7277791,csv,0.0001,L,3.60E-07,mol N/L,pct_error_formula,interpolation_formula
+TN Ñ total elemental nitrogen,mM N,TC/TN_analyzer,3.00E+00,0,0,0,0,0,0,0,3.003190436,csv,0.0001,L,3.60E-07,mol N/L,pct_error_formula,interpolation_formula
+glycine (Gly),nM,LCMS  ,1555.17,0.00,0.00,0.00,0.00,0.00,0.00,0.00,1555.17,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+alanine (Ala),nM,LCMS  ,358.89,0.00,0.00,0.00,0.00,0.00,0.00,0.00,358.89,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+valine (Val),nM,LCMS  ,44.86,0.00,0.00,0.00,0.00,0.00,0.00,0.00,44.86,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+leucine (Leu),nM,LCMS  ,29.91,0.00,0.00,0.00,0.00,0.00,0.00,0.00,29.91,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+isoleucine (Ile),nM,LCMS  ,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+proline (Pro),nM,LCMS  ,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+phenylalanine (Phe),nM,LCMS  ,23.93,0.00,0.00,0.00,0.00,0.00,0.00,0.00,23.93,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+tryptophan (Trp),nM,LCMS  ,11.96,0.00,0.00,0.00,0.00,0.00,0.00,0.00,11.96,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+methionine (Met),nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+serine (Ser),nM,LCMS  ,44.86,0.00,0.00,0.00,0.00,0.00,0.00,0.00,44.86,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+threonine (Thr),nM,LCMS  ,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+cysteine (Cys),nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+tyrosine (Tyr),nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+asparagine (Asn),nM,LCMS  ,8.97,0.00,0.00,0.00,0.00,0.00,0.00,0.00,8.97,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+glutamine (Gln),nM,LCMS  ,8.97,0.00,0.00,0.00,0.00,0.00,0.00,0.00,8.97,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+aspartic acid (Asp),nM,LCMS  ,119.63,0.00,0.00,0.00,0.00,0.00,0.00,0.00,119.63,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+glutamic acid (Glu),nM,LCMS  ,74.77,0.00,0.00,0.00,0.00,0.00,0.00,0.00,74.77,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+lysine (Lys),nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+arginine (Arg),nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+histidine (His),nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+AIB (a-aminoisobutyric acid),nM,LCMS  ,65.80,0.00,0.00,0.00,0.00,0.00,0.00,0.00,65.80,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+isovaline,nM,LCMS  ,29.91,0.00,0.00,0.00,0.00,0.00,0.00,0.00,29.91,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+beta-alanine,nM,LCMS  ,149.54,0.00,0.00,0.00,0.00,0.00,0.00,0.00,149.54,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+gamma-aminobutyric acid (GABA),nM,LCMS  ,134.58,0.00,0.00,0.00,0.00,0.00,0.00,0.00,134.58,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+alpha-aminobutyric acid,nM,LCMS  ,59.81,0.00,0.00,0.00,0.00,0.00,0.00,0.00,59.81,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+beta-aminoisobutyric acid,nM,LCMS  ,23.93,0.00,0.00,0.00,0.00,0.00,0.00,0.00,23.93,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+norvaline,nM,LCMS  ,23.93,0.00,0.00,0.00,0.00,0.00,0.00,0.00,23.93,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+norleucine,nM,LCMS  ,8.97,0.00,0.00,0.00,0.00,0.00,0.00,0.00,8.97,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+ornithine,nM,LCMS  ,8.97,0.00,0.00,0.00,0.00,0.00,0.00,0.00,8.97,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+citrulline,nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+sarcosine,nM,LCMS  ,8.97,0.00,0.00,0.00,0.00,0.00,0.00,0.00,8.97,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+pipecolic acid,nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+hydroxyproline,nM,LCMS  ,2.99,0.00,0.00,0.00,0.00,0.00,0.00,0.00,2.99,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+taurine,nM,LCMS  ,5.98,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.98,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+diaminopimelic acid (DAP),nM,LCMS  ,2.99,0.00,0.00,0.00,0.00,0.00,0.00,0.00,2.99,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+aminopentanoic acid pool (5-AVA + 4-APA + 3-APA),nM,LCMS  ,134.58,0.00,0.00,0.00,0.00,0.00,0.00,0.00,134.58,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+peptides (di/tri/oligo),uM,LCMS  ,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,spectra,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+"nucleobases (A,G,C,U,T)",uM,LCMS  ,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,spectra,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+short RNA/DNA oligomers,nM,LCMS  ,0.00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,spectra,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+formate,mM,GCMS_Derivatized,0.07737,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,7.74E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+acetate,mM,GCMS_Derivatized,0.01436,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.44E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+propanoate,mM,GCMS_Derivatized,0.00957,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,9.57E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+butanoate,mM,GCMS_Derivatized,0.05404,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,5.40E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+pentanoate,mM,GCMS_Derivatized,0.05038,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,5.04E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+hexanoate,mM,GCMS_Derivatized,0.06089,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,6.09E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+heptanoate,mM,GCMS_Derivatized,0.05236,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,5.24E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+octanoate,mM,GCMS_Derivatized,0.02897,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,2.90E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+nonoate,mM,GCMS_Derivatized,0.06315,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,6.31E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+decanoate,mM,GCMS_Derivatized,0.01553,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.55E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+undecanoate,mM,GCMS_Derivatized,0.00612,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,6.12E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+dodecanoate,mM,GCMS_Derivatized,0.00586,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,5.86E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C13,mM,GCMS_Derivatized,0.00245,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,2.45E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C14,mM,GCMS_Derivatized,0.00894,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,8.94E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C15,mM,GCMS_Derivatized,0.00001,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,7.98E-06,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C16,mM,GCMS_Derivatized,0.00150,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.50E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C17,mM,GCMS_Derivatized,0.00001,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,7.98E-06,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C18,mM,GCMS_Derivatized,0.00008,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,7.98E-05,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C19,mM,GCMS_Derivatized,0.00000,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C20,mM,GCMS_Derivatized,0.00000,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C4 branched fatty acid (abiotic),mM,GCMS_Derivatized,0.00977,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,9.77E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C5 branched fatty acid (abiotic),mM,GCMS_Derivatized,0.00860,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,8.60E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C6 branched fatty acid (abiotic),mM,GCMS_Derivatized,0.01090,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.09E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C7 branched fatty acid (abiotic),mM,GCMS_Derivatized,0.00906,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,9.06E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C8 branched fatty acid (abiotic),mM,GCMS_Derivatized,0.00530,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,5.30E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C9 branched fatty acid (abiotic),mM,GCMS_Derivatized,0.01103,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.10E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C10 branched fatty acid (abiotic),mM,GCMS_Derivatized,0.00283,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,2.83E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C12 branched fatty acid (life),mM,GCMS_Derivatized,0.00099,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,9.95E-04,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C14 branched fatty acid (life),mM,GCMS_Derivatized,0.00159,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.59E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C16 branched fatty acid (life),mM,GCMS_Derivatized,0.00026,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,2.57E-04,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C5 1-alkanol,mM,GCMS_Derivatized,0.01540,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.54E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C6 1-alkanol,mM,GCMS_Derivatized,0.01875,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.87E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C7 1-alkanol,mM,GCMS_Derivatized,0.01604,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.60E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C8 1-alkanol,mM,GCMS_Derivatized,0.00895,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,8.95E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C9 1-alkanol,mM,GCMS_Derivatized,0.01937,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.94E-02,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C10 1-alkanol,mM,GCMS_Derivatized,0.00480,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,4.80E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C11 1-alkanol,mM,GCMS_Derivatized,0.00160,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.60E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C12 1-alkanol,mM,GCMS_Derivatized,0.00179,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,1.79E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C13 1-alkanol,mM,GCMS_Derivatized,0.00064,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,6.40E-04,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C14 1-alkanol,mM,GCMS_Derivatized,0.00275,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,2.75E-03,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C15 1-alkanol,mM,GCMS_Derivatized,0.00000,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,2.08E-06,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C16 1-alkanol,mM,GCMS_Derivatized,0.00046,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,4.58E-04,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C17 1-alkanol,mM,GCMS_Derivatized,0.00000,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,2.08E-06,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C18 1-alkanol,mM,GCMS_Derivatized,0.00002,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,2.08E-05,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C19 1-alkanol,mM,GCMS_Derivatized,0.00000,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C20 1-alkanol,mM,GCMS_Derivatized,0.00000,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+Unsaturated 1G-GDGT-0,pg/ug extract,LCMS_spectra,0,Yes,Yes,no,no,no,no,0,0,spectra,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+1G-GDGT-5,pg/ug extract,LCMS_spectra,0,yes,no,no,no,no,no,0,0,spectra,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+PE-DEG (C14:2),pg/ug extract,LCMS_spectra,0,yes,yes,no,no,no,no,0,0,spectra,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+1G-AR:1,pg/ug extract,LCMS_spectra,0,no,yes,no,no,no,no,0,0,spectra,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+ladderane,pg/ug extract,LCMS_spectra,0,yes,no,no,no,no,no,0,0,spectra,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+amide I (~1650 cm-1),nmol peptide bonds / L,FTIR_spectra,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,spectra,0.0001,L,1.00E-03,mol/L,pct_error_formula,interpolation_formula
+amide II (~1540 cm-1),nmol peptide bonds / L,FTIR_spectra,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,spectra,0.0001,L,1.00E-03,mol/L,pct_error_formula,interpolation_formula
+C-H stretch (~2900 cm-1),nmol aliphatic C / L,FTIR_spectra,3.21E+06,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,3.21E+06,spectra,0.0001,L,1.00E-03,mol/L,pct_error_formula,interpolation_formula
+C=O ester (~1740 cm-1),nmol ester C=O / L,FTIR_spectra,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,spectra,0.0001,L,1.00E-03,mol/L,pct_error_formula,interpolation_formula
+O-H / N-H (~3300 cm-1),nmol O-H+N-H / L,FTIR_spectra,9.06E+04,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,9.06E+04,spectra,0.0001,L,1.00E-03,mol/L,pct_error_formula,interpolation_formula
+phosphate (~1080 cm-1),nmol P / L,FTIR_spectra,3.00E+07,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,3.00E+07,spectra,0.0001,L,1.00E-03,mol/L,pct_error_formula,interpolation_formula
+carbohydrate (~1030 cm-1),nmol C-O groups / L,FTIR_spectra,9.06E+04,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,9.06E+04,spectra,0.0001,L,1.00E-03,mol/L,pct_error_formula,interpolation_formula
+temperature,deg C,CTD-pH  ,-1.1,,,,,,,0,-1.1,csv,0.0001,L,T 0.0002 ¡C; C 0.00004 S/m; P 0.001% of full scale; pH 0.02,resolution,pct_error_formula,interpolation_formula
+salinity,PSU,CTD-pH  ,150,,,,,,,,150,csv,0.0001,L,T 0.0002 ¡C; C 0.00004 S/m; P 0.001% of full scale; pH 0.02,resolution,pct_error_formula,interpolation_formula
+pressure,bar,CTD-pH  ,figur,,,,,,,,figur,csv,0.0001,L,T 0.0002 ¡C; C 0.00004 S/m; P 0.001% of full scale; pH 0.02,resolution,pct_error_formula,interpolation_formula
+depth (initial),km,CTD-pH  ,0,,,,,,,,0,csv,0.0001,L,T 0.0002 ¡C; C 0.00004 S/m; P 0.001% of full scale; pH 0.02,resolution,pct_error_formula,interpolation_formula
+TOC (total organic carbon),uM C,TOC/DOC analyzer,3727.779139,,,,,,,0,3727.779139,csv,0.0001,L,5.00E-05,mol C/L,pct_error_formula,interpolation_formula
+DOC (dissolved organic C),uM C,TOC/DOC analyzer,3727.779139,,,,,,,0,3727.779139,csv,0.0001,L,5.00E-05,mol C/L,pct_error_formula,interpolation_formula
+POC (particulate organic C),uM C,TOC/DOC analyzer,0,,,,,,,0,0,csv,0.0001,L,5.00E-05,mol C/L,pct_error_formula,interpolation_formula
+DIC / _CO2,mM,TOC/DOC analyzer,150,,,,,,,0,150,csv,0.0001,L,1.00E-06,mol/L,pct_error_formula,interpolation_formula
+C2-C4 hydrocarbons,nM,GCMS,1502,,,,,,,0,1502,csv,0.0001,L,1.00E-07,mol/L,pct_error_formula,interpolation_formula
+C2H6,nM,GCMS,1350,,,,,,,0,1350,csv,0.0001,L,,,pct_error_formula,interpolation_formula
+C2H4,nM,GCMS,10.5,,,,,,,0,10.5,csv,0.0001,L,,,pct_error_formula,interpolation_formula
+C3H8,nM,GCMS,116.5,,,,,,,0,116.5,csv,0.0001,L,,,pct_error_formula,interpolation_formula
+C4H10,nM,GCMS,25,,,,,,,0,25,csv,0.0001,L,,,pct_error_formula,interpolation_formula
+NH4+ (ammonium),mM,IC,3,,,,,,,0,3,csv,0.0001,L,5.54E-08,mol/L,pct_error_formula,interpolation_formula
+NO2- (nitrite),uM,IC,0.01,,,,,,,0,0.01,csv,0.0001,L,2.17E-08,mol/L,pct_error_formula,interpolation_formula
+NO3- (nitrate),uM,IC,0.1,,,,,,,0,0.1,csv,0.0001,L,1.61E-08,mol/L,pct_error_formula,interpolation_formula
+Cl- (chloride),mM,IC,2551.037258,,,,,,,0,2551.037258,csv,0.0001,L,2.82E-08,mol/L,pct_error_formula,interpolation_formula
+_PO4 (orthophosphate) = H2PO4- + HPO4^2- + PO4^3-,mM,IC,30,,,,,,,0,30,csv,0.0001,L,1.05E-08,mol/L,pct_error_formula,interpolation_formula
+Uracil,nM,LCMS,1.237711149,,,,,,,0,1.237711149,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+Thymine,nM,LCMS,0.449617519,,,,,,,0,0.449617519,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+Cytosine,nM,LCMS,0.507714165,,,,,,,0,0.507714165,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+Adenine,nM,LCMS,0.245016289,,,,,,,0,0.245016289,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+Guanine,nM,LCMS,0.330898287,,,,,,,0,0.330898287,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+Xanthine,nM,LCMS,0.166712114,,,,,,,0,0.166712114,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
+Hypoxanthine,nM,LCMS,0.053044764,,,,,,,0,0.053044764,csv,0.0001,L,1.00E-09,mol/L,pct_error_formula,interpolation_formula
